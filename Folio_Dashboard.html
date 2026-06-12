@@ -1,0 +1,3336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folio — Personal Finance Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAF7F5;
+            color: #2C2118;
+            line-height: 1.6;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 220px;
+            height: 100vh;
+            background-color: #3D3229;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        .sidebar-brand {
+            font-size: 20px;
+            font-weight: 700;
+            color: #D4A69A;
+            margin-bottom: 32px;
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sidebar-tab {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #A0896E;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .sidebar-tab:hover {
+            background-color: rgba(212, 166, 154, 0.1);
+        }
+
+        .sidebar-tab.active {
+            background-color: #D4A69A;
+            color: #3D3229;
+        }
+
+        .sidebar-tab svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-footer {
+            font-size: 11px;
+            color: #8B7355;
+            text-align: center;
+            padding-top: 16px;
+            border-top: 1px solid rgba(160, 137, 110, 0.2);
+        }
+
+        /* Main Layout */
+        .container {
+            margin-left: 220px;
+            padding: 32px;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2C2118;
+            margin-bottom: 4px;
+        }
+
+        .header-left p {
+            font-size: 13px;
+            color: #8B7355;
+        }
+
+        .header-right {
+            font-size: 13px;
+            color: #8B7355;
+            text-align: right;
+        }
+
+        /* Content */
+        #content {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Cards & Grids */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #8B7355;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2C2118;
+            margin-bottom: 12px;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            color: #8B7355;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .arrow-up {
+            color: #7BA68A;
+        }
+
+        .arrow-down {
+            color: #C47A6E;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 1400px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        table thead {
+            background: #FAF7F5;
+        }
+
+        table th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #8B7355;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(212, 166, 154, 0.2);
+        }
+
+        table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(212, 166, 154, 0.1);
+        }
+
+        table tbody tr:hover {
+            background: #FAF7F5;
+        }
+
+        .text-positive {
+            color: #7BA68A;
+        }
+
+        .text-negative {
+            color: #C47A6E;
+        }
+
+        /* Buttons & Inputs */
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .button-group.pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .button-group.pills button {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #D4A69A;
+            background: white;
+            color: #8B7355;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .button-group.pills button:hover {
+            background: #F0DCD4;
+        }
+
+        .button-group.pills button.active {
+            background: #D4A69A;
+            color: #3D3229;
+            border-color: #D4A69A;
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container-tall {
+            position: relative;
+            height: 400px;
+            margin-bottom: 24px;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #F0DCD4;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #D4A69A;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* Milestone Checklist */
+        .milestone-list {
+            list-style: none;
+        }
+
+        .milestone-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(212, 166, 154, 0.1);
+        }
+
+        .milestone-item:last-child {
+            border-bottom: none;
+        }
+
+        .milestone-checkbox {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #D4A69A;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+
+        .milestone-checkbox.checked {
+            background: #7BA68A;
+            border-color: #7BA68A;
+            color: white;
+        }
+
+        .milestone-text {
+            flex: 1;
+        }
+
+        .milestone-name {
+            font-weight: 500;
+            color: #2C2118;
+            margin-bottom: 2px;
+        }
+
+        .milestone-details {
+            font-size: 12px;
+            color: #8B7355;
+        }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 1000px) {
+            .summary-cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .summary-card-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #8B7355;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .summary-card-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2C2118;
+        }
+
+        .summary-card-detail {
+            font-size: 12px;
+            color: #8B7355;
+            margin-top: 8px;
+        }
+
+        /* Section Titles */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2C2118;
+            margin-bottom: 20px;
+            margin-top: 32px;
+        }
+
+        .section-title:first-child {
+            margin-top: 0;
+        }
+
+        /* Strikethrough for cancelled */
+        .cancelled {
+            text-decoration: line-through;
+            color: #C9A8A0;
+        }
+
+        /* FI Progress Ring */
+        .fi-ring-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 32px 0;
+        }
+
+        .fi-ring {
+            position: relative;
+            width: 180px;
+            height: 180px;
+        }
+
+        .fi-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .fi-ring-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .fi-ring-percent {
+            font-size: 40px;
+            font-weight: 700;
+            color: #2C2118;
+        }
+
+        .fi-ring-label {
+            font-size: 12px;
+            color: #8B7355;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Emergency Fund Circle */
+        .ef-circle-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 32px 0;
+        }
+
+        .ef-circle {
+            position: relative;
+            width: 200px;
+            height: 200px;
+        }
+
+        .ef-circle svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .ef-circle-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .ef-circle-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #2C2118;
+        }
+
+        .ef-circle-label {
+            font-size: 12px;
+            color: #8B7355;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Status Message */
+        .status-card {
+            background: #F0DCD4;
+            border-radius: 12px;
+            padding: 20px;
+            color: #6B5548;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .status-card.positive {
+            background: rgba(123, 166, 138, 0.1);
+            color: #7BA68A;
+        }
+
+        /* What-If Cards */
+        .whatif-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 1000px) {
+            .whatif-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .whatif-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .whatif-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2C2118;
+            margin-bottom: 12px;
+        }
+
+        .whatif-card-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #D4A69A;
+        }
+
+        /* No Data State */
+        .no-data {
+            background: #FAF7F5;
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            color: #8B7355;
+            font-size: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+                padding: 16px 8px;
+            }
+
+            .sidebar-brand {
+                font-size: 16px;
+                margin-bottom: 24px;
+            }
+
+            .sidebar-tab {
+                padding: 12px 8px;
+                font-size: 0;
+            }
+
+            .sidebar-tab svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .container {
+                margin-left: 60px;
+                padding: 24px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                margin-bottom: 24px;
+            }
+
+            .header-right {
+                margin-top: 12px;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .whatif-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">Folio</div>
+        <nav class="sidebar-nav" id="sidebar-nav">
+            <!-- Tabs will be inserted here -->
+        </nav>
+        <div class="sidebar-footer">
+            <div>v1.0.0</div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Welcome back, Saffron</h1>
+                <p id="today-date"></p>
+            </div>
+        </div>
+        <div id="connection-bar" style="padding: 12px 20px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; background: #F0DCD4;"></div>
+        <div id="content"></div>
+    </main>
+
+    <script>
+        // ============================================================================
+        // GOOGLE SHEETS API CONFIG
+        // ============================================================================
+
+        const CONFIG = {
+            CLIENT_ID: '185610168060-4bc8vffjh14krk2hg7gq0m8r0gl4mgd4.apps.googleusercontent.com', // User fills this in
+            SPREADSHEET_ID: '18WMNYBQDakLEntyIY8xaI47W5rthMRhhL_oUIukCUD0', // User fills this in
+            SCOPES: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        };
+
+        const RANGES = {
+            // Dashboard KPIs: [Net Worth, Monthly Income, ISA Remaining, Pension Pot, Savings Target]
+            dashboardKPIs: "DASHBOARD!A2:E2",
+            milestones: "DASHBOARD!B5:B10",
+
+            // Monthly Overview (12 rows: Jan=row2...Dec=row13, Totals=row14)
+            monthlyData: "MONTHLY!A2:G13",
+            monthlyTotals: "MONTHLY!A14:G14",
+
+            // Net Worth
+            netWorthLiquid: "NET_WORTH!A3:D5",
+            netWorthInvestments: "NET_WORTH!A7:D11",
+            netWorthProperty: "NET_WORTH!A13:D13",
+            netWorthOther: "NET_WORTH!A15:D15",
+            netWorthTotalAssets: "NET_WORTH!A17:D17",
+            netWorthLiabilities: "NET_WORTH!A19:D22",
+            netWorthTotalLiabilities: "NET_WORTH!A23:D23",
+            netWorthNet: "NET_WORTH!A24:D24",
+
+            // ISA (4 types + total)
+            isaData: "ISA!A2:D6",
+
+            // Pension (key-value pairs)
+            pensionData: "PENSION!A2:B14",
+
+            // Emergency Fund (key-value pairs)
+            emergencyFund: "EMERGENCY_FUND!A2:B8",
+
+            // Subscriptions
+            subsTotals: "SUBSCRIPTIONS!A1:F1",
+            subsList: "SUBSCRIPTIONS!A4:F20",
+
+            // Projections
+            projTable: "PROJECTIONS!A7:E16",
+
+            // Pay Estimator
+            payEmployment: "PAY_ESTIMATOR!A6:J17",
+            payOtherIncome: "PAY_ESTIMATOR!A23:G34",
+            payKeyMetrics: "PAY_ESTIMATOR!A2:F2",
+
+            // Monthly Budget tabs (Jan-Dec)
+            janSummary: "BUDGET_JAN!A1:F1",
+            janIncome: "BUDGET_JAN!A5:D7",
+            janFixed: "BUDGET_JAN!A10:D21",
+            janVariable: "BUDGET_JAN!A24:D40",
+            janSavings: "BUDGET_JAN!A43:D49",
+
+            febSummary: "BUDGET_FEB!A1:F1",
+            febIncome: "BUDGET_FEB!A5:D7",
+            febFixed: "BUDGET_FEB!A10:D21",
+            febVariable: "BUDGET_FEB!A24:D40",
+            febSavings: "BUDGET_FEB!A43:D49",
+
+            marSummary: "BUDGET_MAR!A1:F1",
+            marIncome: "BUDGET_MAR!A5:D7",
+            marFixed: "BUDGET_MAR!A10:D21",
+            marVariable: "BUDGET_MAR!A24:D40",
+            marSavings: "BUDGET_MAR!A43:D49",
+
+            aprSummary: "BUDGET_APR!A1:F1",
+            aprIncome: "BUDGET_APR!A5:D7",
+            aprFixed: "BUDGET_APR!A10:D21",
+            aprVariable: "BUDGET_APR!A24:D40",
+            aprSavings: "BUDGET_APR!A43:D49",
+
+            maySummary: "BUDGET_MAY!A1:F1",
+            mayIncome: "BUDGET_MAY!A5:D7",
+            mayFixed: "BUDGET_MAY!A10:D21",
+            mayVariable: "BUDGET_MAY!A24:D40",
+            maySavings: "BUDGET_MAY!A43:D49",
+
+            junSummary: "BUDGET_JUN!A1:F1",
+            junIncome: "BUDGET_JUN!A5:D7",
+            junFixed: "BUDGET_JUN!A10:D21",
+            junVariable: "BUDGET_JUN!A24:D40",
+            junSavings: "BUDGET_JUN!A43:D49",
+
+            julSummary: "BUDGET_JUL!A1:F1",
+            julIncome: "BUDGET_JUL!A5:D7",
+            julFixed: "BUDGET_JUL!A10:D21",
+            julVariable: "BUDGET_JUL!A24:D40",
+            julSavings: "BUDGET_JUL!A43:D49",
+
+            augSummary: "BUDGET_AUG!A1:F1",
+            augIncome: "BUDGET_AUG!A5:D7",
+            augFixed: "BUDGET_AUG!A10:D21",
+            augVariable: "BUDGET_AUG!A24:D40",
+            augSavings: "BUDGET_AUG!A43:D49",
+
+            sepSummary: "BUDGET_SEP!A1:F1",
+            sepIncome: "BUDGET_SEP!A5:D7",
+            sepFixed: "BUDGET_SEP!A10:D21",
+            sepVariable: "BUDGET_SEP!A24:D40",
+            sepSavings: "BUDGET_SEP!A43:D49",
+
+            octSummary: "BUDGET_OCT!A1:F1",
+            octIncome: "BUDGET_OCT!A5:D7",
+            octFixed: "BUDGET_OCT!A10:D21",
+            octVariable: "BUDGET_OCT!A24:D40",
+            octSavings: "BUDGET_OCT!A43:D49",
+
+            novSummary: "BUDGET_NOV!A1:F1",
+            novIncome: "BUDGET_NOV!A5:D7",
+            novFixed: "BUDGET_NOV!A10:D21",
+            novVariable: "BUDGET_NOV!A24:D40",
+            novSavings: "BUDGET_NOV!A43:D49",
+
+            decSummary: "BUDGET_DEC!A1:F1",
+            decIncome: "BUDGET_DEC!A5:D7",
+            decFixed: "BUDGET_DEC!A10:D21",
+            decVariable: "BUDGET_DEC!A24:D40",
+            decSavings: "BUDGET_DEC!A43:D49",
+
+            // Settings / FI config
+            settings: "SETTINGS!A2:B8",
+        };
+
+        const SheetsAPI = {
+            tokenClient: null,
+            accessToken: null,
+            isSignedIn: false,
+            liveData: null,
+
+            init() {
+                if (!CONFIG.CLIENT_ID || !CONFIG.SPREADSHEET_ID) return;
+
+                this.tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CONFIG.CLIENT_ID,
+                    scope: CONFIG.SCOPES,
+                    callback: (response) => {
+                        if (response.error) {
+                            console.error('Auth error:', response);
+                            this.updateStatus('error', 'Authentication failed. Please try again.');
+                            return;
+                        }
+                        this.accessToken = response.access_token;
+                        this.isSignedIn = true;
+                        this.updateStatus('connected');
+                        this.fetchAllData();
+                    },
+                });
+
+                this.updateStatus('ready');
+            },
+
+            signIn() {
+                if (!this.tokenClient) {
+                    alert('Please set CLIENT_ID and SPREADSHEET_ID in the config first.');
+                    return;
+                }
+                this.tokenClient.requestAccessToken();
+            },
+
+            signOut() {
+                if (this.accessToken) {
+                    google.accounts.oauth2.revoke(this.accessToken);
+                }
+                this.accessToken = null;
+                this.isSignedIn = false;
+                this.liveData = null;
+                this.updateStatus('ready');
+                // Re-render current tab with embedded data
+                const activeBtn = document.querySelector('.sidebar-tab.active');
+                if (activeBtn) activeBtn.click();
+            },
+
+            async fetchAllData() {
+                this.updateStatus('loading');
+
+                try {
+                    const rangeKeys = Object.keys(RANGES);
+                    const rangeValues = Object.values(RANGES);
+
+                    // Batch fetch all ranges
+                    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values:batchGet?` +
+                        rangeValues.map(r => `ranges=${encodeURIComponent(r)}`).join('&') +
+                        '&valueRenderOption=UNFORMATTED_VALUE';
+
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${this.accessToken}` }
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error?.message || 'Failed to fetch data');
+                    }
+
+                    const data = await response.json();
+
+                    // Map ranges back to keys
+                    this.liveData = {};
+                    data.valueRanges.forEach((range, i) => {
+                        this.liveData[rangeKeys[i]] = range.values || [];
+                    });
+
+                    // Parse and update all data objects
+                    this.parseData();
+                    this.updateStatus('connected');
+
+                    // Re-render current tab
+                    const activeBtn = document.querySelector('.sidebar-tab.active');
+                    if (activeBtn) activeBtn.click();
+
+                } catch (err) {
+                    console.error('Fetch error:', err);
+                    this.updateStatus('error', err.message);
+                }
+            },
+
+            parseData() {
+                const d = this.liveData;
+                if (!d) return;
+                window.LIVE = window.LIVE || {};
+
+                // ── Dashboard KPIs ──────────────────────────────────────
+                // Row: [Net Worth, Monthly Income, ISA Remaining, Pension Pot, Savings Target]
+                if (d.dashboardKPIs && d.dashboardKPIs[0]) {
+                    const kpis = d.dashboardKPIs[0].map(v => parseFloat(v) || 0);
+                    window.LIVE.netWorth = kpis[0];
+                    window.LIVE.monthlyIncome = kpis[1];
+                    window.LIVE.isaRemaining = kpis[2];
+                    window.LIVE.pensionPot = kpis[3];
+                    window.LIVE.savingsTarget = kpis[4];
+                }
+
+                // ── Milestones ──────────────────────────────────────────
+                if (d.milestones) {
+                    window.LIVE.milestones = d.milestones.map(row => {
+                        const val = row[0] || '';
+                        return val.includes('✓') || val.includes('Reached');
+                    });
+                }
+
+                // ── Monthly Overview (MONTHLY sheet) ────────────────────
+                // 12 rows × 7 cols: Month, Income, Fixed, Variable, Savings, Surplus, Savings Rate
+                if (d.monthlyData) {
+                    window.LIVE.monthlyData = d.monthlyData.map(row => ({
+                        month: (row[0] || '').substring(0, 3),
+                        income: parseFloat(row[1]) || 0,
+                        expenses: (parseFloat(row[2]) || 0) + (parseFloat(row[3]) || 0),
+                        savings: parseFloat(row[4]) || 0,
+                        surplus: parseFloat(row[5]) || 0,
+                        savingsRate: (parseFloat(row[6]) || 0) * 100,
+                    }));
+                }
+
+                // Annual totals from MONTHLY row 14
+                if (d.monthlyTotals && d.monthlyTotals[0]) {
+                    const t = d.monthlyTotals[0];
+                    window.LIVE.annualIncome = parseFloat(t[1]) || 0;
+                    const fixedTotal = parseFloat(t[2]) || 0;
+                    const varTotal = parseFloat(t[3]) || 0;
+                    window.LIVE.annualExpenses = fixedTotal + varTotal;
+                    window.LIVE.totalSaved = parseFloat(t[4]) || 0;
+                    window.LIVE.avgSavingsRate = (parseFloat(t[6]) || 0) * 100;
+                }
+
+                // ── Net Worth ───────────────────────────────────────────
+                // Build assets array from separate category ranges
+                window.LIVE.assets = [];
+                window.LIVE.liabilities = [];
+
+                const parseAssetRows = (rows, category) => {
+                    if (!rows) return;
+                    rows.filter(row => row[0] && row[0].trim() !== '')
+                        .forEach(row => {
+                            window.LIVE.assets.push({
+                                name: row[0],
+                                value: parseFloat(row[1]) || 0,
+                                lastMonth: parseFloat(row[2]) || 0,
+                                change: parseFloat(row[3]) || 0,
+                                category: category,
+                            });
+                        });
+                };
+
+                parseAssetRows(d.netWorthLiquid, 'Liquid');
+                parseAssetRows(d.netWorthInvestments, 'Investments');
+                parseAssetRows(d.netWorthProperty, 'Property');
+                parseAssetRows(d.netWorthOther, 'Other');
+
+                // Liabilities
+                if (d.netWorthLiabilities) {
+                    window.LIVE.liabilities = d.netWorthLiabilities
+                        .filter(row => row[0] && row[0].trim() !== '')
+                        .map(row => ({
+                            name: row[0],
+                            value: parseFloat(row[1]) || 0,
+                            lastMonth: parseFloat(row[2]) || 0,
+                            change: parseFloat(row[3]) || 0,
+                        }));
+                }
+
+                // Totals (each is a single-row range)
+                if (d.netWorthTotalAssets && d.netWorthTotalAssets[0]) {
+                    window.LIVE.totalAssets = parseFloat(d.netWorthTotalAssets[0][1]) || 0;
+                }
+                if (d.netWorthTotalLiabilities && d.netWorthTotalLiabilities[0]) {
+                    window.LIVE.totalLiabilities = parseFloat(d.netWorthTotalLiabilities[0][1]) || 0;
+                }
+                if (d.netWorthNet && d.netWorthNet[0]) {
+                    window.LIVE.netWorthTotal = parseFloat(d.netWorthNet[0][1]) || 0;
+                    window.LIVE.netWorthChange = parseFloat(d.netWorthNet[0][3]) || 0;
+                }
+
+                // ── ISA ─────────────────────────────────────────────────
+                // Cols A-D: Type, Limit, Contributed, Remaining (rows 2-6, row 6 = total)
+                if (d.isaData) {
+                    window.LIVE.isa = d.isaData.map(row => ({
+                        type: row[0],
+                        allowance: parseFloat(row[1]) || 0,
+                        contributed: parseFloat(row[2]) || 0,
+                        remaining: parseFloat(row[3]) || 0,
+                    }));
+                }
+
+                // ── Pension (key-value pairs) ───────────────────────────
+                if (d.pensionData) {
+                    window.LIVE.pension = {};
+                    d.pensionData.forEach(row => {
+                        if (row[0] && row[1] !== undefined) {
+                            window.LIVE.pension[row[0]] = parseFloat(row[1]) || row[1];
+                        }
+                    });
+                }
+
+                // ── Emergency Fund (key-value pairs) ────────────────────
+                if (d.emergencyFund) {
+                    window.LIVE.emergencyFund = {};
+                    d.emergencyFund.forEach(row => {
+                        if (row[0] && row[1] !== undefined) {
+                            window.LIVE.emergencyFund[row[0]] = parseFloat(row[1]) || row[1];
+                        }
+                    });
+                }
+
+                // ── Subscriptions ───────────────────────────────────────
+                // Totals row: [Monthly Total, val, Annual Total, val, Active Count, val]
+                if (d.subsTotals && d.subsTotals[0]) {
+                    window.LIVE.subsMonthly = parseFloat(d.subsTotals[0][1]) || 0;
+                    window.LIVE.subsAnnual = parseFloat(d.subsTotals[0][3]) || 0;
+                    window.LIVE.subsActive = parseFloat(d.subsTotals[0][5]) || 0;
+                }
+                if (d.subsList) {
+                    window.LIVE.subscriptions = d.subsList
+                        .filter(row => row[0])
+                        .map(row => ({
+                            service: row[0],
+                            cost: parseFloat(row[1]) || 0,
+                            frequency: row[2] || 'Monthly',
+                            category: row[3] || '',
+                            startDate: row[4] || '',
+                            status: row[5] || 'Active',
+                        }));
+                }
+
+                // ── Projections ─────────────────────────────────────────
+                if (d.projTable) {
+                    window.LIVE.projections = d.projTable.map(row => ({
+                        year: row[0],
+                        start: parseFloat(row[1]) || 0,
+                        contrib: parseFloat(row[2]) || 0,
+                        growth: parseFloat(row[3]) || 0,
+                        end: parseFloat(row[4]) || 0,
+                    }));
+                }
+
+                // ── Pay Estimator ───────────────────────────────────────
+                // Key metrics row: [Avg Take-Home, val, Total Tax, val, Effective Tax Rate, val]
+                if (d.payKeyMetrics && d.payKeyMetrics[0]) {
+                    window.LIVE.payAvgTakeHome = parseFloat(d.payKeyMetrics[0][1]) || 0;
+                    window.LIVE.payTotalTax = parseFloat(d.payKeyMetrics[0][3]) || 0;
+                    window.LIVE.payEffectiveTaxRate = parseFloat(d.payKeyMetrics[0][5]) || 0;
+                }
+
+                // Employment income: 12 rows × 10 cols
+                // Month, Base Pay, Overtime, Bonus, Gross, Tax, NI, Pension, Other Deductions, Net Employment
+                if (d.payEmployment) {
+                    window.LIVE.payEstimates = d.payEmployment
+                        .filter(row => row[0] && row[0].trim() !== '')
+                        .slice(0, 12)
+                        .map(row => ({
+                            month: (row[0] || '').substring(0, 3),
+                            basePay: parseFloat(row[1]) || 0,
+                            overtime: parseFloat(row[2]) || 0,
+                            bonus: parseFloat(row[3]) || 0,
+                            gross: parseFloat(row[4]) || 0,
+                            tax: parseFloat(row[5]) || 0,
+                            ni: parseFloat(row[6]) || 0,
+                            pension: parseFloat(row[7]) || 0,
+                            otherDeductions: parseFloat(row[8]) || 0,
+                            takeHome: parseFloat(row[9]) || 0,
+                        }));
+                }
+
+                // Other income: 12 rows × 7 cols
+                // Month, Vinted Sales, Dog Walking, Allowance, Other, Total Other Income, Grand Total
+                if (d.payOtherIncome) {
+                    window.LIVE.otherIncome = d.payOtherIncome
+                        .filter(row => row[0] && row[0].trim() !== '')
+                        .slice(0, 12)
+                        .map(row => ({
+                            month: (row[0] || '').substring(0, 3),
+                            vinted: parseFloat(row[1]) || 0,
+                            dogWalking: parseFloat(row[2]) || 0,
+                            allowance: parseFloat(row[3]) || 0,
+                            other: parseFloat(row[4]) || 0,
+                            totalOther: parseFloat(row[5]) || 0,
+                            grandTotal: parseFloat(row[6]) || 0,
+                        }));
+                }
+
+                // ── Settings / FI Config ────────────────────────────────
+                if (d.settings) {
+                    window.LIVE.settings = {};
+                    d.settings.forEach(row => {
+                        if (row[0] && row[1] !== undefined) {
+                            window.LIVE.settings[row[0]] = parseFloat(row[1]) || row[1];
+                        }
+                    });
+                }
+
+                // ── Monthly Budgets (all 12 months) ─────────────────────
+                // Summary: [Total Income, val, Total Expenses, val, Surplus, val]
+                // Income: rows with [Category, Budget, Actual, Diff] — last row is total
+                // Fixed/Variable/Savings: same col structure
+                window.LIVE.monthlyBudgets = {};
+                const monthKeys = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                monthKeys.forEach(m => {
+                    const prefix = m.charAt(0).toUpperCase() + m.slice(1);
+                    const summaryKey = m + 'Summary';
+                    const incomeKey = m + 'Income';
+                    const fixedKey = m + 'Fixed';
+                    const variableKey = m + 'Variable';
+                    const savingsKey = m + 'Savings';
+
+                    if (d[summaryKey]) {
+                        const budget = { income: {}, fixed: [], variable: [], savings: [] };
+
+                        // Summary row: [Total Income, val, Total Expenses, val, Surplus, val]
+                        if (d[summaryKey][0]) {
+                            budget.totalIncome = parseFloat(d[summaryKey][0][1]) || 0;
+                            budget.totalExpenses = parseFloat(d[summaryKey][0][3]) || 0;
+                            budget.surplus = parseFloat(d[summaryKey][0][5]) || 0;
+                        }
+
+                        // Income rows: [Category, Budget, Actual, Diff]
+                        // Rows 5-6 = income items, Row 7 = Total Income
+                        if (d[incomeKey]) {
+                            const incRows = d[incomeKey];
+                            const totalRow = incRows.find(r => r[0] && r[0].toUpperCase().includes('TOTAL')) || incRows[incRows.length - 1] || [];
+                            const dataRows = incRows.filter(r => r[0] && !r[0].toUpperCase().includes('TOTAL'));
+                            const primaryRow = dataRows[0] || [];
+                            const otherRow = dataRows[1] || [];
+                            budget.income = {
+                                primary: { budget: parseFloat(primaryRow[1]) || 0, actual: parseFloat(primaryRow[2]) || 0 },
+                                other: { budget: parseFloat(otherRow[1]) || 0, actual: parseFloat(otherRow[2]) || 0 },
+                                total: { budget: parseFloat(totalRow[1]) || 0, actual: parseFloat(totalRow[2]) || 0 },
+                            };
+                        }
+
+                        // Fixed expenses
+                        if (d[fixedKey]) {
+                            budget.fixed = d[fixedKey]
+                                .filter(row => row[0] && !row[0].toUpperCase().includes('TOTAL') && (parseFloat(row[1]) > 0 || parseFloat(row[2]) > 0))
+                                .map(row => ({
+                                    name: row[0],
+                                    budget: parseFloat(row[1]) || 0,
+                                    actual: parseFloat(row[2]) || 0,
+                                    diff: parseFloat(row[3]) || 0,
+                                }));
+                        }
+
+                        // Variable expenses
+                        if (d[variableKey]) {
+                            budget.variable = d[variableKey]
+                                .filter(row => row[0] && !row[0].toUpperCase().includes('TOTAL') && (parseFloat(row[1]) > 0 || parseFloat(row[2]) > 0))
+                                .map(row => ({
+                                    category: row[0],
+                                    budget: parseFloat(row[1]) || 0,
+                                    actual: parseFloat(row[2]) || 0,
+                                    diff: parseFloat(row[3]) || 0,
+                                }));
+                        }
+
+                        // Savings
+                        if (d[savingsKey]) {
+                            budget.savings = d[savingsKey]
+                                .filter(row => row[0] && !row[0].toUpperCase().includes('TOTAL') && (parseFloat(row[1]) > 0 || parseFloat(row[2]) > 0))
+                                .map(row => ({
+                                    name: row[0],
+                                    target: parseFloat(row[1]) || 0,
+                                    actual: parseFloat(row[2]) || 0,
+                                    diff: parseFloat(row[3]) || 0,
+                                }));
+                        }
+
+                        window.LIVE.monthlyBudgets[prefix] = budget;
+                    }
+                });
+            },
+
+            updateStatus(status, message) {
+                const bar = document.getElementById('connection-bar');
+                if (!bar) return;
+
+                if (!CONFIG.CLIENT_ID || !CONFIG.SPREADSHEET_ID) {
+                    bar.innerHTML = `<span style="color: #8B7355;">⚙ Set up Google Sheets connection — Enter your Client ID and Spreadsheet ID in the config section at the top of this file.</span>`;
+                    bar.style.background = '#F0DCD4';
+                    return;
+                }
+
+                switch(status) {
+                    case 'ready':
+                        bar.innerHTML = `<button onclick="SheetsAPI.signIn()" style="background: #D4A69A; color: #3D3229; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Sign in with Google</button> <span style="color: #8B7355; margin-left: 12px;">to load live data from your spreadsheet</span>`;
+                        bar.style.background = '#F0DCD4';
+                        break;
+                    case 'loading':
+                        bar.innerHTML = `<span style="color: #8B7355;">↻ Loading data from Google Sheets...</span>`;
+                        bar.style.background = '#F0DCD4';
+                        break;
+                    case 'connected':
+                        bar.innerHTML = `<span style="color: #7BA68A; font-weight: 600;">✓ Connected to Google Sheets</span> <button onclick="SheetsAPI.fetchAllData()" style="background: none; border: 1px solid #D4A69A; color: #8B6F5E; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 12px;">Refresh</button> <button onclick="SheetsAPI.signOut()" style="background: none; border: none; color: #8B7355; cursor: pointer; font-size: 12px; margin-left: 8px; text-decoration: underline;">Sign out</button>`;
+                        bar.style.background = '#E8F5E9';
+                        break;
+                    case 'error':
+                        bar.innerHTML = `<span style="color: #C47A6E;">✗ ${message || 'Connection error'}</span> <button onclick="SheetsAPI.signIn()" style="background: #D4A69A; color: #3D3229; border: none; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 12px;">Retry</button>`;
+                        bar.style.background = '#FDE8E4';
+                        break;
+                }
+            }
+        };
+
+        // ============================================================================
+        // DATA
+        // ============================================================================
+
+        const monthlyData = [
+            { month: 'Jan', income: 2098.30, expenses: 2181.54, savings: 1597.63, surplus: -1680.87, savingsRate: 76.1 },
+            { month: 'Feb', income: 1411.71, expenses: 2124.84, savings: 217.17, surplus: -930.30, savingsRate: 15.4 },
+            { month: 'Mar', income: 22.69, expenses: 224.45, savings: 10.81, surplus: -212.57, savingsRate: 47.6 },
+            { month: 'Apr', income: 0, expenses: 10.99, savings: 0, surplus: -10.99, savingsRate: 0 },
+            { month: 'May', income: 0, expenses: 10.99, savings: 0, surplus: -10.99, savingsRate: 0 },
+            { month: 'Jun', income: 0, expenses: 10.99, savings: 0, surplus: -10.99, savingsRate: 0 },
+            { month: 'Jul', income: 0, expenses: 10.99, savings: 0, surplus: -10.99, savingsRate: 0 },
+            { month: 'Aug', income: 0, expenses: 0, savings: 0, surplus: 0, savingsRate: 0 },
+            { month: 'Sep', income: 0, expenses: 0, savings: 0, surplus: 0, savingsRate: 0 },
+            { month: 'Oct', income: 0, expenses: 0, savings: 0, surplus: 0, savingsRate: 0 },
+            { month: 'Nov', income: 0, expenses: 0, savings: 0, surplus: 0, savingsRate: 0 },
+            { month: 'Dec', income: 0, expenses: 0, savings: 0, surplus: 0, savingsRate: 0 },
+        ];
+
+        const milestones = [
+            { name: '1-month emergency fund', target: '£3,500+', stage: 'Foundation', reached: true },
+            { name: '6-month emergency fund', target: '£21,000+', stage: 'Security', reached: false },
+            { name: 'First £10k invested', target: '£10,000', stage: 'Momentum', reached: false },
+            { name: 'ISA fully funded', target: '£20,000/yr', stage: 'Tax efficiency', reached: false },
+            { name: '£100k net worth', target: '£100,000', stage: 'Compounding accelerates', reached: false },
+            { name: 'FIRE number reached', target: '25× expenses', stage: 'Freedom', reached: false },
+        ];
+
+        const monthlyBudgets = {
+            Jan: {
+                income: { primary: { budget: 2060.85, actual: 1868.04 }, other: { budget: 0, actual: 230.26 }, total: { budget: 2060.85, actual: 2098.30 } },
+                fixed: [
+                    { name: 'Rent / Mortgage', budget: 1108, actual: 1109 },
+                    { name: 'Mobile', budget: 10, actual: 10 },
+                ],
+                variable: [
+                    { category: 'Groceries', budget: 300, actual: 266.42 },
+                    { category: 'Transport / Fuel', budget: 120, actual: 0 },
+                    { category: 'Dining Out & Takeaways', budget: 80, actual: 292.12 },
+                    { category: 'Coffee & Drinks', budget: 30, actual: 13.01 },
+                    { category: 'Personal Care', budget: 40, actual: 0 },
+                    { category: 'Clothing & Shopping', budget: 50, actual: 398.35 },
+                    { category: 'Health & Medical', budget: 20, actual: 0 },
+                    { category: 'Streaming & Media', budget: 25, actual: 10.99 },
+                    { category: 'Music', budget: 11, actual: 0 },
+                    { category: 'Software & Apps', budget: 15, actual: 0 },
+                    { category: 'Entertainment & Social', budget: 80, actual: 36.40 },
+                    { category: 'Hobbies', budget: 50, actual: 0 },
+                    { category: 'Travel & Holidays', budget: 100, actual: 1.25 },
+                    { category: 'Gifts & Occasions', budget: 30, actual: 0 },
+                    { category: 'Education', budget: 0, actual: 0 },
+                    { category: 'Miscellaneous', budget: 30, actual: 44.00 },
+                ],
+                savings: [
+                    { name: 'Emergency Fund', target: 50, actual: 0 },
+                    { name: 'Round-Up Savings', target: 0, actual: 15.63 },
+                    { name: 'ISA Contribution', target: 0, actual: 0 },
+                    { name: 'Pension Contribution', target: 0, actual: 0 },
+                    { name: 'Investment / Brokerage', target: 0, actual: 200 },
+                    { name: 'Other / Buffer Savings', target: 0, actual: 1382 },
+                ],
+            },
+            Feb: {
+                income: { primary: { budget: 1321.56, actual: 1106.70 }, other: { budget: 0, actual: 305.01 }, total: { budget: 1321.56, actual: 1411.71 } },
+                fixed: [
+                    { name: 'Rent / Mortgage', budget: 1108, actual: 1108 },
+                    { name: 'Mobile', budget: 10, actual: 10 },
+                ],
+                variable: [
+                    { category: 'Groceries', budget: 300, actual: 94.45 },
+                    { category: 'Transport / Fuel', budget: 120, actual: 0 },
+                    { category: 'Dining Out & Takeaways', budget: 80, actual: 480.53 },
+                    { category: 'Coffee & Drinks', budget: 30, actual: 55.31 },
+                    { category: 'Personal Care', budget: 40, actual: 95.82 },
+                    { category: 'Clothing & Shopping', budget: 50, actual: 65.61 },
+                    { category: 'Health & Medical', budget: 20, actual: 37.08 },
+                    { category: 'Streaming & Media', budget: 25, actual: 10.99 },
+                    { category: 'Music', budget: 11, actual: 0 },
+                    { category: 'Software & Apps', budget: 15, actual: 0 },
+                    { category: 'Entertainment & Social', budget: 80, actual: 154.71 },
+                    { category: 'Hobbies', budget: 50, actual: 0 },
+                    { category: 'Travel & Holidays', budget: 100, actual: 12.34 },
+                    { category: 'Gifts & Occasions', budget: 30, actual: 0 },
+                    { category: 'Education', budget: 0, actual: 0 },
+                    { category: 'Miscellaneous', budget: 30, actual: 0 },
+                ],
+                savings: [
+                    { name: 'Emergency Fund', target: 50, actual: 0 },
+                    { name: 'Round-Up Savings', target: 0, actual: 21.19 },
+                    { name: 'ISA Contribution', target: 0, actual: 0 },
+                    { name: 'Pension Contribution', target: 0, actual: 195.98 },
+                    { name: 'Investment / Brokerage', target: 0, actual: 0 },
+                    { name: 'Other / Buffer Savings', target: 0, actual: 0 },
+                ],
+            },
+            Mar: {
+                income: { primary: { budget: 2067.03, actual: 0 }, other: { budget: 0, actual: 22.69 }, total: { budget: 2067.03, actual: 22.69 } },
+                fixed: [
+                    { name: 'Rent / Mortgage', budget: 1108, actual: 0 },
+                    { name: 'Mobile', budget: 10, actual: 0 },
+                ],
+                variable: [
+                    { category: 'Groceries', budget: 300, actual: 99.33 },
+                    { category: 'Transport / Fuel', budget: 120, actual: 43.95 },
+                    { category: 'Dining Out & Takeaways', budget: 80, actual: 1.99 },
+                    { category: 'Coffee & Drinks', budget: 30, actual: 0 },
+                    { category: 'Personal Care', budget: 40, actual: 29.80 },
+                    { category: 'Clothing & Shopping', budget: 50, actual: 0 },
+                    { category: 'Health & Medical', budget: 20, actual: 0 },
+                    { category: 'Streaming & Media', budget: 25, actual: 10.99 },
+                    { category: 'Music', budget: 11, actual: 10.99 },
+                    { category: 'Software & Apps', budget: 15, actual: 0 },
+                    { category: 'Entertainment & Social', budget: 80, actual: 27.40 },
+                    { category: 'Hobbies', budget: 50, actual: 0 },
+                    { category: 'Travel & Holidays', budget: 100, actual: 0 },
+                    { category: 'Gifts & Occasions', budget: 30, actual: 0 },
+                    { category: 'Education', budget: 0, actual: 0 },
+                    { category: 'Miscellaneous', budget: 30, actual: 0 },
+                ],
+                savings: [
+                    { name: 'Emergency Fund', target: 50, actual: 0 },
+                    { name: 'Round-Up Savings', target: 0, actual: 10.81 },
+                    { name: 'ISA Contribution', target: 0, actual: 0 },
+                    { name: 'Pension Contribution', target: 0, actual: 0 },
+                    { name: 'Investment / Brokerage', target: 0, actual: 0 },
+                    { name: 'Other / Buffer Savings', target: 0, actual: 0 },
+                ],
+            }
+        };
+
+        const payEstimates = [
+            { month: 'Jan', gross: 2571.10, tax: 280.61, ni: 109.09, pension: 120.56, takeHome: 2060.85 },
+            { month: 'Feb', gross: 1479.50, tax: 73.46, ni: 19.76, pension: 64.73, takeHome: 1321.56 },
+            { month: 'Mar', gross: 2548.25, tax: 278.08, ni: 92.78, pension: 110.36, takeHome: 2067.03 },
+            { month: 'Apr', gross: 2728.00, tax: 312.52, ni: 104.84, pension: 117.90, takeHome: 2192.74 },
+            { month: 'May', gross: 2618.00, tax: 290.52, ni: 104.84, pension: 117.90, takeHome: 2104.74 },
+            { month: 'Jun', gross: 2618.00, tax: 290.52, ni: 104.84, pension: 117.90, takeHome: 2104.74 },
+            { month: 'Jul', gross: 2618.00, tax: 290.52, ni: 104.84, pension: 117.90, takeHome: 2104.74 },
+            { month: 'Aug', gross: 2358.00, tax: 238.52, ni: 104.84, pension: 117.90, takeHome: 1896.74 },
+            { month: 'Sep', gross: 2358.00, tax: 238.52, ni: 104.84, pension: 117.90, takeHome: 1896.74 },
+            { month: 'Oct', gross: 2358.00, tax: 238.52, ni: 104.84, pension: 117.90, takeHome: 1896.74 },
+            { month: 'Nov', gross: 2358.00, tax: 238.52, ni: 104.84, pension: 117.90, takeHome: 1896.74 },
+            { month: 'Dec', gross: 2358.00, tax: 238.52, ni: 104.84, pension: 117.90, takeHome: 1896.74 },
+        ];
+
+        const assets = [
+            { name: 'Current Account', value: 2500, category: 'Liquid' },
+            { name: 'Easy-Access Savings', value: 5000, category: 'Liquid' },
+            { name: 'Emergency Fund', value: 10000, category: 'Liquid' },
+            { name: 'Stocks & Shares ISA', value: 8000, category: 'Investments' },
+            { name: 'GIA', value: 2000, category: 'Investments' },
+            { name: 'SIPP', value: 15000, category: 'Investments' },
+            { name: 'Workplace Pension', value: 20000, category: 'Investments' },
+        ];
+
+        const subscriptions = [
+            { service: 'Spotify', cost: 10.99, frequency: 'Monthly', status: 'Active' },
+            { service: 'Amazon Prime', cost: 8.99, frequency: 'Monthly', status: 'Active' },
+            { service: 'Claude', cost: 18.00, frequency: 'Monthly', status: 'Active' },
+            { service: 'Emma', cost: 9.99, frequency: 'Monthly', status: 'Active' },
+            { service: 'Raya', cost: 19.99, frequency: 'Monthly', status: 'Active' },
+            { service: 'Monzo Perks', cost: 7.00, frequency: 'Monthly', status: 'Cancelled' },
+            { service: 'Revolut Metal', cost: 7.99, frequency: 'Monthly', status: 'Active' },
+        ];
+
+        const projections = [
+            { year: 'Year 1', start: 10000, contrib: 6000, growth: 1120, end: 17120 },
+            { year: 'Year 2', start: 17120, contrib: 6180, growth: 1631, end: 24931 },
+            { year: 'Year 3', start: 24931, contrib: 6365, growth: 2191, end: 33487 },
+            { year: 'Year 4', start: 33487, contrib: 6556, growth: 2803, end: 42847 },
+            { year: 'Year 5', start: 42847, contrib: 6753, growth: 3472, end: 53072 },
+            { year: 'Year 6', start: 53072, contrib: 6956, growth: 4202, end: 64229 },
+            { year: 'Year 7', start: 64229, contrib: 7164, growth: 4998, end: 76391 },
+            { year: 'Year 8', start: 76391, contrib: 7379, growth: 5864, end: 89634 },
+            { year: 'Year 9', start: 89634, contrib: 7601, growth: 6806, end: 104041 },
+            { year: 'Year 10', start: 104041, contrib: 7829, growth: 7831, end: 119701 },
+        ];
+
+        const HOLDINGS = [
+            { ticker: 'VUAG.L', name: 'Vanguard S&P 500 (Acc)', shares: 8.88033978, account: 'S&S ISA' },
+            { ticker: 'VHVE.L', name: 'Vanguard FTSE Developed World (Acc)', shares: 5.98801321, account: 'S&S ISA' },
+            { ticker: 'SEMI.L', name: 'iShares Global Semiconductors (Acc)', shares: 46.74022066, account: 'S&S ISA' },
+            { ticker: 'WLDS.L', name: 'iShares MSCI World Small Cap (Acc)', shares: 45.74715792, account: 'S&S ISA' },
+            { ticker: 'EIMI.L', name: 'iShares Core MSCI EM IMI (Acc)', shares: 4.5233558, account: 'S&S ISA' },
+        ];
+
+        const StockAPI = {
+            cache: {},
+            lastFetch: 0,
+
+            async fetchPrices() {
+                const now = Date.now();
+                // Cache for 5 minutes
+                if (now - this.lastFetch < 300000 && Object.keys(this.cache).length > 0) {
+                    return this.cache;
+                }
+
+                const results = {};
+
+                for (const holding of HOLDINGS) {
+                    try {
+                        // Use corsproxy.io as CORS proxy for Yahoo Finance
+                        const url = `https://corsproxy.io/?${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${holding.ticker}?range=5d&interval=1d`)}`;
+                        const response = await fetch(url);
+                        const data = await response.json();
+
+                        const meta = data.chart.result[0].meta;
+                        const quotes = data.chart.result[0].indicators.quote[0];
+                        const closes = quotes.close.filter(c => c !== null);
+
+                        const currentPrice = meta.regularMarketPrice;
+                        const previousClose = closes.length >= 2 ? closes[closes.length - 2] : currentPrice;
+                        const change = currentPrice - previousClose;
+                        const changePercent = (change / previousClose) * 100;
+
+                        results[holding.ticker] = {
+                            price: currentPrice,
+                            previousClose: previousClose,
+                            change: change,
+                            changePercent: changePercent,
+                            currency: meta.currency,
+                        };
+                    } catch (err) {
+                        console.error(`Failed to fetch ${holding.ticker}:`, err);
+                        results[holding.ticker] = null;
+                    }
+                }
+
+                this.cache = results;
+                this.lastFetch = now;
+                return results;
+            }
+        };
+
+        const annualCategories = [
+            { category: 'Groceries', total: 460.20 },
+            { category: 'Dining Out & Takeaways', total: 774.64 },
+            { category: 'Clothing & Shopping', total: 463.96 },
+            { category: 'Entertainment & Social', total: 218.51 },
+            { category: 'Personal Care', total: 125.62 },
+            { category: 'Coffee & Drinks', total: 68.32 },
+            { category: 'Streaming & Media', total: 65.94 },
+            { category: 'Transport / Fuel', total: 43.95 },
+            { category: 'Miscellaneous', total: 44.00 },
+            { category: 'Health & Medical', total: 37.08 },
+            { category: 'Travel & Holidays', total: 13.59 },
+            { category: 'Music', total: 10.99 },
+        ];
+
+        // ============================================================================
+        // UTILITIES
+        // ============================================================================
+
+        const fmt = (n) => {
+            const sign = n < 0 ? '-' : '';
+            return sign + '£' + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('today-date').textContent = dateStr;
+
+        let chartInstances = [];
+
+        function destroyCharts() {
+            chartInstances.forEach(chart => {
+                if (chart && chart.destroy) chart.destroy();
+            });
+            chartInstances = [];
+        }
+
+        async function refreshPrices() {
+            const statusEl = document.getElementById('price-status');
+            const btn = document.getElementById('refresh-prices-btn');
+
+            if (statusEl) statusEl.textContent = 'Fetching live prices...';
+            if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+            try {
+                const prices = await StockAPI.fetchPrices();
+                let totalValue = 0;
+                let totalChange = 0;
+
+                HOLDINGS.forEach(h => {
+                    const data = prices[h.ticker];
+                    if (!data) {
+                        // Failed to fetch
+                        const priceEl = document.getElementById(`price-${h.ticker}`);
+                        if (priceEl) priceEl.textContent = 'Error';
+                        return;
+                    }
+
+                    // Note: LSE ETFs trade in GBX (pence), so divide by 100 for GBP
+                    const priceGBP = data.currency === 'GBp' ? data.price / 100 : data.price;
+                    const changeGBP = data.currency === 'GBp' ? data.change / 100 : data.change;
+                    const value = h.shares * priceGBP;
+                    const holdingChange = h.shares * changeGBP;
+
+                    totalValue += value;
+                    totalChange += holdingChange;
+
+                    const priceEl = document.getElementById(`price-${h.ticker}`);
+                    const valueEl = document.getElementById(`value-${h.ticker}`);
+                    const changeEl = document.getElementById(`change-${h.ticker}`);
+
+                    if (priceEl) priceEl.textContent = fmt(priceGBP);
+                    if (valueEl) valueEl.textContent = fmt(value);
+                    if (changeEl) {
+                        const isPositive = data.changePercent >= 0;
+                        changeEl.innerHTML = `<span style="color: ${isPositive ? '#7BA68A' : '#C47A6E'};">${isPositive ? '+' : ''}${fmt(holdingChange)} (${isPositive ? '+' : ''}${data.changePercent.toFixed(2)}%)</span>`;
+                    }
+                });
+
+                const totalEl = document.getElementById('portfolio-total');
+                const changeEl = document.getElementById('portfolio-change');
+
+                if (totalEl) totalEl.textContent = fmt(totalValue);
+                if (changeEl) {
+                    const isPositive = totalChange >= 0;
+                    changeEl.innerHTML = `<span style="color: ${isPositive ? '#7BA68A' : '#C47A6E'};">${isPositive ? '+' : '-'}${fmt(totalChange)}</span>`;
+                }
+
+                // Update portfolio pie chart with real values
+                if (window._portfolioPieChart) {
+                    const realValues = HOLDINGS.map(h => {
+                        const data = prices[h.ticker];
+                        if (!data) return 0;
+                        const priceGBP = data.currency === 'GBp' ? data.price / 100 : data.price;
+                        return h.shares * priceGBP;
+                    });
+                    window._portfolioPieChart.data.datasets[0].data = realValues;
+                    window._portfolioPieChart.update();
+                }
+
+                if (statusEl) {
+                    const now = new Date();
+                    statusEl.textContent = `Last updated: ${now.toLocaleTimeString('en-GB')} · Prices from Yahoo Finance (15-min delay)`;
+                }
+            } catch (err) {
+                console.error('Price refresh failed:', err);
+                if (statusEl) statusEl.textContent = 'Failed to fetch prices. Try again in a moment.';
+            } finally {
+                if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+            }
+        }
+
+        // ============================================================================
+        // TAB DEFINITIONS
+        // ============================================================================
+
+        // TAB 1: OVERVIEW
+        function tabOverview() {
+            const live = window.LIVE;
+            const netWorth = live ? live.netWorthTotal : 62500;
+            const netWorthChange = live ? live.netWorthChange : 0;
+            const monthlyDataArr = live && live.monthlyData ? live.monthlyData : monthlyData;
+            const latestMonth = monthlyDataArr.length > 0 ? monthlyDataArr[monthlyDataArr.length - 1] : monthlyDataArr[0];
+            const surplusVal = latestMonth?.surplus ?? -212.57;
+            const savingsRate = latestMonth?.savingsRate ?? 51.7;
+            const monthLabel = latestMonth?.month ?? 'March';
+            const isaRemaining = live ? live.isaRemaining : 15000;
+            const efData = live && live.emergencyFund ? live.emergencyFund : {};
+            const efBalance = parseFloat(efData['Current Fund Balance (£)'] ?? efData['Current Balance'] ?? 0);
+            const efMonthlyExpenses = parseFloat(efData['Monthly Essential Expenses (£)'] ?? efData['Monthly Essential Expenses'] ?? 1118);
+            const efTargetMonths = parseFloat(efData['Target Months of Cover'] ?? 3);
+            const efTarget = efMonthlyExpenses * efTargetMonths;
+            const efPercent = efTarget > 0 ? (efBalance / efTarget) * 100 : 0;
+            const fiMultiplier = live && live.settings && live.settings['FI Multiplier'] ? live.settings['FI Multiplier'] : 25;
+            const fiAnnualExpenses = live && live.settings && live.settings['Annual Expenses (£)'] ? live.settings['Annual Expenses (£)'] : 25416;
+            const fiNumber = live && live.settings && live.settings['FI Number (£)'] ? live.settings['FI Number (£)'] : fiAnnualExpenses * fiMultiplier;
+            const milestonesData = live && live.milestones ? milestones.map((m, i) => ({ ...m, reached: live.milestones[i] || m.reached })) : milestones;
+            const dataToUse = monthlyDataArr;
+
+            const html = `
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="card-title">Net Worth</div>
+                        <div class="card-value">${fmt(netWorth)}</div>
+                        <div class="card-subtitle">
+                            <span class="arrow-up">▲</span> ${fmt(netWorthChange)}
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">Monthly Surplus</div>
+                        <div class="card-value" style="color: ${surplusVal >= 0 ? '#7BA68A' : '#C47A6E'};">${fmt(surplusVal)}</div>
+                        <div class="card-subtitle ${surplusVal >= 0 ? 'text-positive' : 'text-negative'}">
+                            <span class="${surplusVal >= 0 ? 'arrow-up' : 'arrow-down'}">${surplusVal >= 0 ? '▲' : '▼'}</span> ${monthLabel}
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">Savings Rate</div>
+                        <div class="card-value">${savingsRate.toFixed(1)}%</div>
+                        <div class="card-subtitle text-positive">
+                            <span class="arrow-up">▲</span> Strong momentum
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">ISA Remaining</div>
+                        <div class="card-value">${fmt(isaRemaining)}</div>
+                        <div class="card-subtitle">of ${fmt(20000)} annual allowance</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">Emergency Fund</div>
+                        <div class="card-value">${efPercent.toFixed(0)}%</div>
+                        <div class="card-subtitle ${efPercent >= 100 ? 'text-positive' : 'text-warning'}">${efBalance > 0 ? fmt(efBalance) + ' of ' + fmt(efTarget) + ' target' : "You haven't started your emergency fund yet"}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">FI Progress</div>
+                        <div class="card-value">${((netWorth / fiNumber) * 100).toFixed(1)}%</div>
+                        <div class="card-subtitle">${fmt(netWorth)} of ${fmt(fiNumber)}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Income vs Expenses</h3>
+                    <div class="chart-container">
+                        <canvas id="incomeExpensesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Net Worth Trend</h3>
+                    <div class="chart-container">
+                        <canvas id="netWorthChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Wealth Milestones</h3>
+                    <ul class="milestone-list">
+                        ${milestonesData.map(m => `
+                            <li class="milestone-item">
+                                <div class="milestone-checkbox ${m.reached ? 'checked' : ''}">
+                                    ${m.reached ? '✓' : ''}
+                                </div>
+                                <div class="milestone-text">
+                                    <div class="milestone-name">${m.name}</div>
+                                    <div class="milestone-details">${m.stage} • ${m.target}</div>
+                                </div>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+            return html;
+        }
+
+        tabOverview.initCharts = function() {
+            const live = window.LIVE;
+            const chartData = live && live.monthlyData ? live.monthlyData : monthlyData;
+            const netWorth = live ? live.netWorthTotal : 62500;
+
+            const ctx1 = document.getElementById('incomeExpensesChart').getContext('2d');
+            const chart1 = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(d => d.month),
+                    datasets: [
+                        {
+                            label: 'Income',
+                            data: chartData.map(d => d.income),
+                            backgroundColor: '#D4A69A',
+                            borderRadius: 6,
+                            borderSkipped: false,
+                        },
+                        {
+                            label: 'Expenses',
+                            data: chartData.map(d => d.expenses),
+                            backgroundColor: '#8B6F5E',
+                            borderRadius: 6,
+                            borderSkipped: false,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#8B7355',
+                                usePointStyle: true,
+                                padding: 16,
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart1);
+
+            const ctx2 = document.getElementById('netWorthChart').getContext('2d');
+            const chart2 = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: ['Today', 'Projected'],
+                    datasets: [{
+                        label: 'Net Worth',
+                        data: [netWorth, netWorth],
+                        borderColor: '#D4A69A',
+                        backgroundColor: 'rgba(212, 166, 154, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#D4A69A',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart2);
+        };
+
+        // TAB 2: MONTHLY BUDGET
+        function tabMonthlyBudget() {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            const html = `
+                <div class="button-group pills">
+                    ${months.map(m => `<button class="month-btn ${m === 'Jan' ? 'active' : ''}" data-month="${m}">${m}</button>`).join('')}
+                </div>
+
+                <div id="budget-content"></div>
+            `;
+            return html;
+        }
+
+        tabMonthlyBudget.renderMonth = function(month) {
+            const live = window.LIVE;
+            const budgets = live && live.monthlyBudgets ? live.monthlyBudgets : monthlyBudgets;
+            const data = budgets[month] || monthlyBudgets[month];
+            if (!data) {
+                return '<div class="no-data">No data yet for this month</div>';
+            }
+
+            // Pay estimate for this specific month
+            const payData = live && live.payEstimates ? live.payEstimates : payEstimates;
+            const otherData = live && live.otherIncome ? live.otherIncome : [];
+            const monthIdx = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(month);
+            const thisPay = payData[monthIdx] || {};
+            const thisOther = otherData[monthIdx] || {};
+            const thisGross = thisPay.gross || 0;
+            const thisTakeHome = thisPay.takeHome || 0;
+            const thisOtherTotal = thisOther.totalOther || 0;
+            const thisGrandTotal = thisOther.grandTotal || (thisTakeHome + thisOtherTotal);
+
+            const fixedTotal = data.fixed.reduce((a, b) => a + b.actual, 0);
+            const fixedBudget = data.fixed.reduce((a, b) => a + b.budget, 0);
+            const variableTotal = data.variable.reduce((a, b) => a + b.actual, 0);
+            const variableBudget = data.variable.reduce((a, b) => a + b.budget, 0);
+            const savingsActual = data.savings.reduce((a, b) => a + b.actual, 0);
+            const savingsBudget = data.savings.reduce((a, b) => a + b.target, 0);
+
+            // Subscriptions data
+            const subsData = live && live.subscriptions ? live.subscriptions : subscriptions;
+            const activeSubs = subsData.filter(s => s.status === 'Active');
+            const subsMonthlyCost = activeSubs.reduce((a, b) => a + b.cost, 0);
+
+            return `
+                <div class="card" style="background: linear-gradient(135deg, #FAF7F5 0%, #F0DCD4 100%); border: 1px solid #E8C4B8;">
+                    <h3 class="section-title" style="margin-top: 0;">Estimated Pay — ${month}</h3>
+                    <div class="summary-cards">
+                        <div class="summary-card">
+                            <div class="summary-card-label">Gross Pay</div>
+                            <div class="summary-card-value">${fmt(thisGross)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Take-Home</div>
+                            <div class="summary-card-value">${fmt(thisTakeHome)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Other Income</div>
+                            <div class="summary-card-value">${fmt(thisOtherTotal)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Total Income</div>
+                            <div class="summary-card-value" style="color: #7BA68A;">${fmt(thisGrandTotal)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-label">Total Income</div>
+                        <div class="summary-card-value">${fmt(data.income.total.actual)}</div>
+                        <div class="summary-card-detail">${fmt(data.income.total.budget)} budgeted</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-card-label">Total Expenses</div>
+                        <div class="summary-card-value" style="color: #C47A6E;">${fmt(fixedTotal + variableTotal)}</div>
+                        <div class="summary-card-detail">${fmt(fixedBudget + variableBudget)} budgeted</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-card-label">Surplus/Deficit</div>
+                        <div class="summary-card-value" style="color: ${data.income.total.actual - fixedTotal - variableTotal >= 0 ? '#7BA68A' : '#C47A6E'};">
+                            ${fmt(data.income.total.actual - fixedTotal - variableTotal)}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Income</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Budget</th>
+                                <th>Actual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Primary Employment</td>
+                                <td>${fmt(data.income.primary.budget)}</td>
+                                <td>${fmt(data.income.primary.actual)}</td>
+                            </tr>
+                            <tr>
+                                <td>Other Income</td>
+                                <td>${fmt(data.income.other.budget)}</td>
+                                <td>${fmt(data.income.other.actual)}</td>
+                            </tr>
+                            <tr style="background: #FAF7F5; font-weight: 600;">
+                                <td>Total</td>
+                                <td>${fmt(data.income.total.budget)}</td>
+                                <td>${fmt(data.income.total.actual)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Fixed Expenses</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Budget</th>
+                                <th>Actual</th>
+                                <th>Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.fixed.map(f => {
+                                const diff = f.budget - f.actual;
+                                return `
+                                    <tr>
+                                        <td>${f.name}</td>
+                                        <td>${fmt(f.budget)}</td>
+                                        <td>${fmt(f.actual)}</td>
+                                        <td style="color: ${diff >= 0 ? '#7BA68A' : '#C47A6E'}; font-weight: 500;">
+                                            ${fmt(diff)}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr style="background: #FAF7F5; font-weight: 600;">
+                                <td>Total</td>
+                                <td>${fmt(fixedBudget)}</td>
+                                <td>${fmt(fixedTotal)}</td>
+                                <td style="color: ${(fixedBudget - fixedTotal) >= 0 ? '#7BA68A' : '#C47A6E'};">
+                                    ${fmt(fixedBudget - fixedTotal)}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Variable Expenses</h3>
+                    <div class="chart-container" style="max-height: 280px; margin-bottom: 20px;">
+                        <canvas id="variableDonutChart"></canvas>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Budget</th>
+                                <th>Actual</th>
+                                <th>Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.variable.map(v => {
+                                const diff = v.budget - v.actual;
+                                return `
+                                    <tr>
+                                        <td>${v.category}</td>
+                                        <td>${fmt(v.budget)}</td>
+                                        <td>${fmt(v.actual)}</td>
+                                        <td style="color: ${diff >= 0 ? '#7BA68A' : '#C47A6E'}; font-weight: 500;">
+                                            ${fmt(diff)}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr style="background: #FAF7F5; font-weight: 600;">
+                                <td>Total</td>
+                                <td>${fmt(variableBudget)}</td>
+                                <td>${fmt(variableTotal)}</td>
+                                <td style="color: ${(variableBudget - variableTotal) >= 0 ? '#7BA68A' : '#C47A6E'};">
+                                    ${fmt(variableBudget - variableTotal)}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Savings</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fund</th>
+                                <th>Target</th>
+                                <th>Actual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.savings.map(s => `
+                                <tr>
+                                    <td>${s.name}</td>
+                                    <td>${fmt(s.target)}</td>
+                                    <td style="font-weight: 600;">${fmt(s.actual)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Budget vs Actual</h3>
+                    <div class="chart-container-tall">
+                        <canvas id="budgetVsActualChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Subscriptions</h3>
+                    <div style="display: flex; gap: 24px; margin-bottom: 16px;">
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355;">Active</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #2C2118;">${activeSubs.length}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355;">Monthly Cost</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #C47A6E;">${fmt(subsMonthlyCost)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355;">Annual Cost</div>
+                            <div style="font-size: 20px; font-weight: 700; color: #2C2118;">${fmt(subsMonthlyCost * 12)}</div>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Cost</th>
+                                <th>Frequency</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${subsData.map(s => `
+                                <tr>
+                                    <td class="${s.status === 'Cancelled' ? 'cancelled' : ''}">${s.service}</td>
+                                    <td class="${s.status === 'Cancelled' ? 'cancelled' : ''}">${fmt(s.cost)}</td>
+                                    <td class="${s.status === 'Cancelled' ? 'cancelled' : ''}">${s.frequency}</td>
+                                    <td>
+                                        <span style="font-size: 12px; padding: 4px 8px; border-radius: 4px; ${s.status === 'Active' ? 'background: rgba(123, 166, 138, 0.1); color: #7BA68A;' : 'background: #F0DCD4; color: #8B7355;'}">
+                                            ${s.status}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        };
+
+        tabMonthlyBudget.initCharts = function() {
+            const live = window.LIVE;
+            const budgets = live && live.monthlyBudgets ? live.monthlyBudgets : monthlyBudgets;
+            const monthData = budgets[currentMonth] || monthlyBudgets[currentMonth];
+            if (!monthData) return;
+
+            // Donut chart for variable expenses (actual spend)
+            const donutColors = ['#5B3F32', '#3D6B5E', '#E88D7A', '#7A5C8F', '#D4A69A', '#8B6F5E', '#C47A6E', '#A8C5B8', '#B8956A', '#6B8F71', '#9B7D6B', '#D4B896', '#7BA68A', '#E8C4B8', '#5C7A6B', '#A67B5B'];
+            const varWithSpend = monthData.variable.filter(v => v.actual > 0);
+            const donutCtx = document.getElementById('variableDonutChart');
+            if (donutCtx && varWithSpend.length > 0) {
+                const donutChart = new Chart(donutCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: varWithSpend.map(v => v.category),
+                        datasets: [{
+                            data: varWithSpend.map(v => v.actual),
+                            backgroundColor: donutColors.slice(0, varWithSpend.length),
+                            borderWidth: 2,
+                            borderColor: '#FFFFFF',
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '55%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    font: { size: 11, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    usePointStyle: true,
+                                    padding: 10,
+                                    boxWidth: 12,
+                                }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(donutChart);
+            }
+
+            // Budget vs Actual bar chart — categories on x-axis, amounts on y-axis
+            const allCategories = [
+                ...monthData.fixed.map(f => f.name),
+                ...monthData.variable.map(v => v.category),
+                ...monthData.savings.map(s => s.name)
+            ];
+
+            const budgetData = [
+                ...monthData.fixed.map(f => f.budget),
+                ...monthData.variable.map(v => v.budget),
+                ...monthData.savings.map(s => s.target)
+            ];
+
+            const actualData = [
+                ...monthData.fixed.map(f => f.actual),
+                ...monthData.variable.map(v => v.actual),
+                ...monthData.savings.map(s => s.actual)
+            ];
+
+            const ctx = document.getElementById('budgetVsActualChart');
+            if (ctx) {
+                const chart = new Chart(ctx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: allCategories,
+                        datasets: [
+                            {
+                                label: 'Budget',
+                                data: budgetData,
+                                backgroundColor: '#E8C4B8',
+                                borderRadius: 4,
+                            },
+                            {
+                                label: 'Actual',
+                                data: actualData,
+                                backgroundColor: '#8B6F5E',
+                                borderRadius: 4,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    font: { size: 12, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    usePointStyle: true,
+                                    padding: 16,
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    font: { size: 10, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                },
+                                grid: { display: false }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                                grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(chart);
+            }
+        };
+
+        let currentMonth = 'Jan';
+
+        // TAB 3: ANNUAL OVERVIEW
+        function tabAnnualOverview() {
+            const live = window.LIVE;
+            const chartData = live && live.monthlyData ? live.monthlyData : monthlyData;
+            const annualIncome = chartData.reduce((a, b) => a + b.income, 0);
+            const annualExpenses = chartData.reduce((a, b) => a + b.expenses, 0);
+            const annualSavings = chartData.reduce((a, b) => a + b.savings, 0);
+            const avgSavingsRate = annualIncome > 0 ? (annualSavings / (annualIncome + annualSavings)) * 100 : 0;
+            const catData = live && live.annualCategories ? live.annualCategories : annualCategories;
+
+            // Pay estimator data
+            const payData = live && live.payEstimates ? live.payEstimates : payEstimates;
+            const otherData = live && live.otherIncome ? live.otherIncome : [];
+            const activePayMonths = payData.filter(p => p.takeHome > 0);
+            const avgTakeHome = live && live.payAvgTakeHome ? live.payAvgTakeHome : (activePayMonths.length > 0 ? activePayMonths.reduce((sum, p) => sum + p.takeHome, 0) / activePayMonths.length : 0);
+            const avgGross = activePayMonths.length > 0 ? activePayMonths.reduce((sum, p) => sum + p.gross, 0) / activePayMonths.length : 0;
+            const deductionRate = live && live.payEffectiveTaxRate ? live.payEffectiveTaxRate * 100 : (avgGross > 0 ? ((avgGross - avgTakeHome) / avgGross * 100) : 0);
+            const totalOtherAnnual = otherData.reduce((sum, o) => sum + o.totalOther, 0);
+            const avgOtherMonthly = otherData.filter(o => o.totalOther > 0).length > 0 ? totalOtherAnnual / otherData.filter(o => o.totalOther > 0).length : 0;
+            let bestIdx = -1, worstIdx = -1;
+            if (activePayMonths.length > 0) {
+                let bestVal = -Infinity, worstVal = Infinity;
+                payData.forEach((p, i) => {
+                    if (p.takeHome > bestVal) { bestVal = p.takeHome; bestIdx = i; }
+                    if (p.takeHome > 0 && p.takeHome < worstVal) { worstVal = p.takeHome; worstIdx = i; }
+                });
+            }
+
+            const html = `
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-card-label">Annual Income</div>
+                        <div class="summary-card-value">${fmt(annualIncome)}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-card-label">Annual Expenses</div>
+                        <div class="summary-card-value">${fmt(annualExpenses)}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-card-label">Total Saved</div>
+                        <div class="summary-card-value text-positive">${fmt(annualSavings)}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-card-label">Avg Savings Rate</div>
+                        <div class="summary-card-value">${isNaN(avgSavingsRate) ? '0.0' : avgSavingsRate.toFixed(1)}%</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Cumulative Income vs Expenses</h3>
+                    <div class="chart-container">
+                        <canvas id="cumulativeChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Monthly Savings Rate</h3>
+                    <div class="chart-container">
+                        <canvas id="savingsRateChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Spending Breakdown</h3>
+                    <div class="chart-container">
+                        <canvas id="spendingBreakdownChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">Annual Spending by Category</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th style="text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${catData.map(c => `
+                                <tr>
+                                    <td>${c.category}</td>
+                                    <td style="text-align: right; font-weight: 500;">${fmt(c.total)}</td>
+                                </tr>
+                            `).join('')}
+                            <tr style="background: #FAF7F5; font-weight: 600;">
+                                <td>Total</td>
+                                <td style="text-align: right;">${fmt(catData.reduce((a, b) => a + b.total, 0))}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Pay Estimator — Employment Income</h3>
+                    <div class="summary-cards">
+                        <div class="summary-card">
+                            <div class="summary-card-label">Avg Take-Home</div>
+                            <div class="summary-card-value">${fmt(avgTakeHome)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Average Gross</div>
+                            <div class="summary-card-value">${fmt(avgGross)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Deduction Rate</div>
+                            <div class="summary-card-value">${deductionRate.toFixed(1)}%</div>
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Base Pay</th>
+                                <th>Gross</th>
+                                <th>Tax</th>
+                                <th>NI</th>
+                                <th>Pension</th>
+                                <th>Take-Home</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${payData.map((p, i) => `
+                                <tr ${i === bestIdx ? 'style="background: rgba(123, 166, 138, 0.05);"' : ''} ${i === worstIdx ? 'style="background: rgba(196, 122, 110, 0.05);"' : ''}>
+                                    <td>${p.month}</td>
+                                    <td>${fmt(p.basePay || p.gross)}</td>
+                                    <td>${fmt(p.gross)}</td>
+                                    <td>${fmt(p.tax)}</td>
+                                    <td>${fmt(p.ni)}</td>
+                                    <td>${fmt(p.pension)}</td>
+                                    <td style="font-weight: 600;">${fmt(p.takeHome)} ${i === bestIdx ? '★' : ''} ${i === worstIdx ? '↓' : ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${bestIdx >= 0 ? `<p style="font-size: 12px; color: #8B7355; margin-top: 16px;">★ Best month (${payData[bestIdx]?.month}) • ↓ Tightest month (${payData[worstIdx]?.month})</p>` : ''}
+                </div>
+
+                ${otherData.length > 0 ? `
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Other Income Sources</h3>
+                    <div class="summary-cards">
+                        <div class="summary-card">
+                            <div class="summary-card-label">Avg Monthly Other</div>
+                            <div class="summary-card-value">${fmt(avgOtherMonthly)}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-card-label">Annual Other Income</div>
+                            <div class="summary-card-value">${fmt(totalOtherAnnual)}</div>
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Vinted</th>
+                                <th>Dog Walking</th>
+                                <th>Allowance</th>
+                                <th>Other</th>
+                                <th>Total Other</th>
+                                <th>Grand Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${otherData.map(o => `
+                                <tr>
+                                    <td>${o.month}</td>
+                                    <td>${fmt(o.vinted)}</td>
+                                    <td>${fmt(o.dogWalking)}</td>
+                                    <td>${fmt(o.allowance)}</td>
+                                    <td>${fmt(o.other)}</td>
+                                    <td style="font-weight: 500;">${fmt(o.totalOther)}</td>
+                                    <td style="font-weight: 600;">${fmt(o.grandTotal)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ` : ''}
+            `;
+            return html;
+        }
+
+        tabAnnualOverview.initCharts = function() {
+            const live = window.LIVE;
+            const chartData = live && live.monthlyData ? live.monthlyData : monthlyData;
+            const catData = live && live.annualCategories ? live.annualCategories : annualCategories;
+
+            let cumulativeIncome = 0;
+            let cumulativeExpenses = 0;
+            const cumulativeIncomeData = [];
+            const cumulativeExpensesData = [];
+
+            chartData.forEach(d => {
+                cumulativeIncome += d.income;
+                cumulativeExpenses += d.expenses;
+                cumulativeIncomeData.push(cumulativeIncome);
+                cumulativeExpensesData.push(cumulativeExpenses);
+            });
+
+            const ctx1 = document.getElementById('cumulativeChart').getContext('2d');
+            const chart1 = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.month),
+                    datasets: [
+                        {
+                            label: 'Cumulative Income',
+                            data: cumulativeIncomeData,
+                            borderColor: '#D4A69A',
+                            backgroundColor: 'rgba(212, 166, 154, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#D4A69A',
+                        },
+                        {
+                            label: 'Cumulative Expenses',
+                            data: cumulativeExpensesData,
+                            borderColor: '#8B6F5E',
+                            backgroundColor: 'rgba(139, 111, 94, 0.1)',
+                            tension: 0.4,
+                            fill: false,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#8B6F5E',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#8B7355',
+                                usePointStyle: true,
+                                padding: 16,
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart1);
+
+            const ctx2 = document.getElementById('savingsRateChart').getContext('2d');
+            const chart2 = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.month),
+                    datasets: [{
+                        label: 'Savings Rate (%)',
+                        data: chartData.map(d => d.savingsRate),
+                        borderColor: '#8B6F5E',
+                        backgroundColor: 'rgba(139, 111, 94, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#8B6F5E',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart2);
+
+            const ctx3 = document.getElementById('spendingBreakdownChart');
+            if (ctx3) {
+                const filteredCatData = catData.filter(c => c.total > 0);
+                const chart3 = new Chart(ctx3.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: filteredCatData.map(c => c.category),
+                        datasets: [{
+                            data: filteredCatData.map(c => c.total),
+                            backgroundColor: ['#D4A69A', '#8B6F5E', '#E8C4B8', '#C49A8C', '#6B5548', '#B89485', '#F0DCD4', '#A08974', '#C4A892', '#DBC4B4', '#7BA68A', '#C47A6E'],
+                            borderColor: 'white',
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '65%',
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'right',
+                                labels: {
+                                    font: { size: 12, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    padding: 12,
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => ctx.label + ': ' + fmt(ctx.parsed)
+                                }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(chart3);
+            }
+        };
+
+        // TAB 4: NET WORTH
+        function tabNetWorth() {
+            const live = window.LIVE;
+            const assetsData = live && live.assets ? live.assets : assets;
+            const liabilitiesData = live && live.liabilities ? live.liabilities : [
+                { name: 'Credit Card', value: 0 }, { name: 'Student Loan', value: 0 },
+                { name: 'Personal Loan', value: 0 }, { name: 'Other Debt', value: 0 },
+            ];
+            const liquid = assetsData.filter(a => a.category === 'Liquid').reduce((s, a) => s + a.value, 0);
+            const investmentTotal = assetsData.filter(a => a.category === 'Investments').reduce((s, a) => s + a.value, 0);
+            const propertyTotal = assetsData.filter(a => a.category === 'Property').reduce((s, a) => s + a.value, 0);
+            const otherTotal = assetsData.filter(a => a.category === 'Other').reduce((s, a) => s + a.value, 0);
+            const totalAssets = live ? live.totalAssets : (liquid + investmentTotal + propertyTotal + otherTotal);
+            const totalLiabilities = live ? live.totalLiabilities : liabilitiesData.reduce((s, l) => s + l.value, 0);
+            const netWorth = live ? live.netWorthTotal : (totalAssets - totalLiabilities);
+            const change = live ? live.netWorthChange : 0;
+
+            // Group assets by category for the table
+            const liquidAssets = assetsData.filter(a => a.category === 'Liquid');
+            const investmentAssets = assetsData.filter(a => a.category === 'Investments');
+            const propertyAssets = assetsData.filter(a => a.category === 'Property');
+            const otherAssets = assetsData.filter(a => a.category === 'Other');
+
+            function assetRows(items) {
+                return items.map(a => `
+                    <tr>
+                        <td style="padding-left: 24px;">${a.name}</td>
+                        <td style="text-align: right; font-weight: 500;">${fmt(a.value)}</td>
+                        <td style="text-align: right; color: ${a.change >= 0 ? '#7BA68A' : '#C47A6E'}; font-size: 12px;">${a.change !== 0 ? fmt(a.change) : '—'}</td>
+                    </tr>
+                `).join('');
+            }
+
+            const html = `
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="font-size: 48px; font-weight: 700; color: #2C2118; margin-bottom: 8px;">
+                        ${fmt(netWorth)}
+                    </div>
+                    <div style="font-size: 14px; color: #8B7355;">
+                        Month-over-month change: <span style="color: ${change >= 0 ? '#7BA68A' : '#C47A6E'};">${fmt(change)}</span>
+                    </div>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="card-title">Total Assets</div>
+                        <div class="card-value">${fmt(totalAssets)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">Total Liabilities</div>
+                        <div class="card-value" style="color: ${totalLiabilities > 0 ? '#C47A6E' : '#2C2118'};">${fmt(totalLiabilities)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="card-title">Net Worth</div>
+                        <div class="card-value">${fmt(netWorth)}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Asset Allocation</h3>
+                    <div class="chart-container">
+                        <canvas id="assetAllocationChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Assets by Category</h3>
+                    <div class="chart-container">
+                        <canvas id="assetsByCategoryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Assets Breakdown</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th style="text-align: right;">Value</th>
+                                <th style="text-align: right;">Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${liquidAssets.length > 0 ? `
+                                <tr style="background: #FAF7F5;"><td colspan="3" style="font-weight: 600; color: #3D3229; padding: 10px 16px;">Liquid Assets</td></tr>
+                                ${assetRows(liquidAssets)}
+                                <tr style="border-top: 1px solid #E8C4B8;"><td style="font-weight: 600;">Subtotal</td><td style="text-align: right; font-weight: 600;">${fmt(liquid)}</td><td></td></tr>
+                            ` : ''}
+                            ${investmentAssets.length > 0 ? `
+                                <tr style="background: #FAF7F5;"><td colspan="3" style="font-weight: 600; color: #3D3229; padding: 10px 16px;">Investments</td></tr>
+                                ${assetRows(investmentAssets)}
+                                <tr style="border-top: 1px solid #E8C4B8;"><td style="font-weight: 600;">Subtotal</td><td style="text-align: right; font-weight: 600;">${fmt(investmentTotal)}</td><td></td></tr>
+                            ` : ''}
+                            ${propertyAssets.length > 0 ? `
+                                <tr style="background: #FAF7F5;"><td colspan="3" style="font-weight: 600; color: #3D3229; padding: 10px 16px;">Property</td></tr>
+                                ${assetRows(propertyAssets)}
+                                <tr style="border-top: 1px solid #E8C4B8;"><td style="font-weight: 600;">Subtotal</td><td style="text-align: right; font-weight: 600;">${fmt(propertyTotal)}</td><td></td></tr>
+                            ` : ''}
+                            ${otherAssets.length > 0 ? `
+                                <tr style="background: #FAF7F5;"><td colspan="3" style="font-weight: 600; color: #3D3229; padding: 10px 16px;">Other Assets</td></tr>
+                                ${assetRows(otherAssets)}
+                                <tr style="border-top: 1px solid #E8C4B8;"><td style="font-weight: 600;">Subtotal</td><td style="text-align: right; font-weight: 600;">${fmt(otherTotal)}</td><td></td></tr>
+                            ` : ''}
+                            <tr style="background: #F0DCD4; font-weight: 700;">
+                                <td style="padding: 12px 16px;">Total Assets</td>
+                                <td style="text-align: right; padding: 12px 16px;">${fmt(totalAssets)}</td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Liabilities</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Liability</th>
+                                <th style="text-align: right;">Balance</th>
+                                <th style="text-align: right;">Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${liabilitiesData.map(l => `
+                                <tr>
+                                    <td>${l.name}</td>
+                                    <td style="text-align: right; font-weight: 500;">${fmt(l.value)}</td>
+                                    <td style="text-align: right; color: ${(l.change || 0) <= 0 ? '#7BA68A' : '#C47A6E'}; font-size: 12px;">${l.change ? fmt(l.change) : '—'}</td>
+                                </tr>
+                            `).join('')}
+                            <tr style="background: #FAF7F5; font-weight: 600;">
+                                <td>Total Liabilities</td>
+                                <td style="text-align: right;">${fmt(totalLiabilities)}</td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            return html;
+        }
+
+        tabNetWorth.initCharts = function() {
+            const live = window.LIVE;
+            const assetsData = live && live.assets ? live.assets : assets;
+
+            // High-contrast palette for individual asset doughnut
+            const assetColors = [
+                '#D4A69A', // blush
+                '#5B3F32', // deep brown
+                '#8B6F5E', // mocha
+                '#E88D7A', // warm coral
+                '#3D6B5E', // muted teal
+                '#C49A8C', // dusty rose
+                '#7A5C8F', // muted purple
+                '#B89485', // light mocha
+                '#4A7A9B', // steel blue
+            ];
+
+            // Filter out zero-value assets from the chart
+            const chartAssets = assetsData.filter(a => a.value > 0);
+
+            // Asset allocation doughnut chart
+            const ctx1 = document.getElementById('assetAllocationChart').getContext('2d');
+            const chart1 = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: chartAssets.map(a => a.name),
+                    datasets: [{
+                        data: chartAssets.map(a => a.value),
+                        backgroundColor: assetColors.slice(0, chartAssets.length),
+                        borderColor: 'white',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#8B7355',
+                                padding: 12,
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ctx.label + ': ' + fmt(ctx.parsed)
+                            }
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart1);
+
+            // Assets by category bar chart
+            const ctx2 = document.getElementById('assetsByCategoryChart');
+            if (ctx2) {
+                const categoryData = [
+                    { name: 'Liquid Assets', value: assetsData.filter(a => a.category === 'Liquid').reduce((s, a) => s + a.value, 0) },
+                    { name: 'Investments', value: assetsData.filter(a => a.category === 'Investments').reduce((s, a) => s + a.value, 0) },
+                    { name: 'Property', value: assetsData.filter(a => a.category === 'Property').reduce((s, a) => s + a.value, 0) },
+                    { name: 'Other', value: assetsData.filter(a => a.category === 'Other').reduce((s, a) => s + a.value, 0) },
+                ].filter(c => c.value > 0);
+
+                const catColors = ['#D4A69A', '#5B3F32', '#3D6B5E', '#7A5C8F'];
+
+                const chart2 = new Chart(ctx2.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: categoryData.map(c => c.name),
+                        datasets: [{
+                            label: 'Value',
+                            data: categoryData.map(c => c.value),
+                            backgroundColor: catColors.slice(0, categoryData.length),
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => fmt(ctx.parsed.x)
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                                grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                            },
+                            y: {
+                                ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(chart2);
+            }
+        };
+
+        // TAB 5: INVESTMENTS
+        function tabInvestments() {
+            const live = window.LIVE;
+            const isaData = live && live.isa ? live.isa : [];
+            const ssisa = isaData.find(i => i.type && i.type.includes('Stocks & Shares')) || { allowance: 20000, contributed: 5000, remaining: 15000 };
+            const cashISA = isaData.find(i => i.type && i.type.includes('Cash')) || { allowance: 20000, contributed: 0, remaining: 20000 };
+            const lifeISA = isaData.find(i => i.type && i.type.includes('Lifetime')) || { allowance: 4000, contributed: 0, remaining: 4000 };
+            const innovativeFinanceISA = isaData.find(i => i.type && i.type.includes('Innovative')) || { allowance: 20000, contributed: 0, remaining: 20000 };
+            const totalContributed = ssisa.contributed + cashISA.contributed + lifeISA.contributed + innovativeFinanceISA.contributed;
+            const totalRemaining = 20000 - totalContributed;
+            const isaPercent = (totalContributed / 20000) * 100;
+            const projData = live && live.projections ? live.projections : projections;
+
+            const html = `
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; color: #2C2118;">Live Portfolio</h3>
+                        <button id="refresh-prices-btn" onclick="refreshPrices()" style="background: #D4A69A; color: #3D3229; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Refresh Prices</button>
+                    </div>
+                    <p id="price-status" style="font-size: 12px; color: #8B7355; margin-bottom: 16px;">Click "Refresh Prices" to fetch live market data</p>
+
+                    <div id="portfolio-summary" class="grid-3" style="margin-bottom: 24px;">
+                        <div class="card">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Total Portfolio Value</div>
+                            <div id="portfolio-total" style="font-size: 28px; font-weight: 700; color: #2C2118;">—</div>
+                        </div>
+                        <div class="card">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Today's Change</div>
+                            <div id="portfolio-change" style="font-size: 28px; font-weight: 700; color: #2C2118;">—</div>
+                        </div>
+                        <div class="card">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Holdings</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${HOLDINGS.length} funds</div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding: 0; overflow: hidden;">
+                        <table id="holdings-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="background: #F0DCD4;">
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #2C2118;">Fund</th>
+                                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #2C2118;">Account</th>
+                                    <th style="padding: 12px 16px; text-align: right; font-weight: 600; color: #2C2118;">Shares</th>
+                                    <th style="padding: 12px 16px; text-align: right; font-weight: 600; color: #2C2118;">Price</th>
+                                    <th style="padding: 12px 16px; text-align: right; font-weight: 600; color: #2C2118;">Value</th>
+                                    <th style="padding: 12px 16px; text-align: right; font-weight: 600; color: #2C2118;">Day Change</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${HOLDINGS.map((h, i) => `
+                                    <tr style="background: ${i % 2 === 0 ? '#FFFFFF' : '#FAFAF7'}; border-top: 1px solid #F0E8E0;">
+                                        <td style="padding: 12px 16px;">
+                                            <div style="font-weight: 600; color: #2C2118;">${h.name}</div>
+                                            <div style="font-size: 11px; color: #8B7355;">${h.ticker.replace('.L', '')}</div>
+                                        </td>
+                                        <td style="padding: 12px 16px; color: #8B7355;">${h.account}</td>
+                                        <td style="padding: 12px 16px; text-align: right; color: #2C2118;">${h.shares.toFixed(4)}</td>
+                                        <td id="price-${h.ticker}" style="padding: 12px 16px; text-align: right; color: #8B7355;">—</td>
+                                        <td id="value-${h.ticker}" style="padding: 12px 16px; text-align: right; font-weight: 600; color: #2C2118;">—</td>
+                                        <td id="change-${h.ticker}" style="padding: 12px 16px; text-align: right; color: #8B7355;">—</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Portfolio Makeup</h3>
+                    <div class="chart-container" style="max-height: 300px;">
+                        <canvas id="portfolioPieChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Portfolio Growth Projection</h3>
+                    <div class="chart-container">
+                        <canvas id="portfolioGrowthChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">ISA Summary</h3>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px;">
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Total Contributed</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${fmt(totalContributed)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Total Remaining</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${fmt(totalRemaining)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Annual Max</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${fmt(20000)}</div>
+                        </div>
+                    </div>
+                    <div style="background: #FAF7F5; border-radius: 8px; padding: 16px;">
+                        <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Progress</div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" style="width: ${isaPercent}%;"></div>
+                        </div>
+                        <div style="font-size: 11px; color: #8B7355; margin-top: 8px;">${isaPercent.toFixed(0)}% of £20,000 annual allowance used</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">ISA Breakdown</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th style="text-align: right;">Allowance</th>
+                                <th style="text-align: right;">Contributed</th>
+                                <th style="text-align: right;">Remaining</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Stocks & Shares ISA</td>
+                                <td style="text-align: right;">${fmt(ssisa.allowance)}</td>
+                                <td style="text-align: right; font-weight: 600;">${fmt(ssisa.contributed)}</td>
+                                <td style="text-align: right;">${fmt(ssisa.remaining)}</td>
+                            </tr>
+                            <tr>
+                                <td>Cash ISA</td>
+                                <td style="text-align: right;">${fmt(cashISA.allowance)}</td>
+                                <td style="text-align: right; font-weight: 600;">${fmt(cashISA.contributed)}</td>
+                                <td style="text-align: right;">${fmt(cashISA.remaining)}</td>
+                            </tr>
+                            <tr>
+                                <td>LISA</td>
+                                <td style="text-align: right;">${fmt(lifeISA.allowance)}</td>
+                                <td style="text-align: right; font-weight: 600;">${fmt(lifeISA.contributed)}</td>
+                                <td style="text-align: right;">${fmt(lifeISA.remaining)}</td>
+                            </tr>
+                            <tr>
+                                <td>Innovative Finance ISA</td>
+                                <td style="text-align: right;">${fmt(innovativeFinanceISA.allowance)}</td>
+                                <td style="text-align: right; font-weight: 600;">${fmt(innovativeFinanceISA.contributed)}</td>
+                                <td style="text-align: right;">${fmt(innovativeFinanceISA.remaining)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            return html;
+        }
+
+        tabInvestments.initCharts = function() {
+            const live = window.LIVE;
+            const projData = live && live.projections ? live.projections : projections;
+            const pieColors = ['#5B3F32', '#3D6B5E', '#E88D7A', '#7A5C8F', '#D4A69A'];
+
+            // Portfolio makeup pie chart (uses shares as weight — values update after price refresh)
+            const pieCtx = document.getElementById('portfolioPieChart');
+            if (pieCtx) {
+                const chart1 = new Chart(pieCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: HOLDINGS.map(h => h.name),
+                        datasets: [{
+                            data: HOLDINGS.map(h => h.shares),
+                            backgroundColor: pieColors.slice(0, HOLDINGS.length),
+                            borderWidth: 2,
+                            borderColor: '#FFFFFF',
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '50%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    font: { size: 11, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    usePointStyle: true,
+                                    padding: 12,
+                                    boxWidth: 12,
+                                }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(chart1);
+                // Store reference so refreshPrices can update with real values
+                window._portfolioPieChart = chart1;
+            }
+
+            // Portfolio growth projection chart
+            const growthCtx = document.getElementById('portfolioGrowthChart');
+            if (growthCtx) {
+                const chart2 = new Chart(growthCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: projData.map(p => p.year),
+                        datasets: [{
+                            label: 'Projected Value',
+                            data: projData.map(p => p.end),
+                            borderColor: '#8B6F5E',
+                            backgroundColor: 'rgba(139, 111, 94, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#8B6F5E',
+                        }, {
+                            label: 'Contributions',
+                            data: projData.map(p => p.start + p.contrib),
+                            borderColor: '#D4A69A',
+                            backgroundColor: 'rgba(212, 166, 154, 0.05)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#D4A69A',
+                            borderDash: [5, 5],
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    font: { size: 12, family: "'Inter', sans-serif" },
+                                    color: '#8B7355',
+                                    usePointStyle: true,
+                                    padding: 16,
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                                grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                            }
+                        }
+                    }
+                });
+                chartInstances.push(chart2);
+            }
+        };
+
+        // TAB 6: EMERGENCY FUND
+        function tabEmergencyFund() {
+            const live = window.LIVE;
+            const efData = live && live.emergencyFund ? live.emergencyFund : {};
+            const balance = parseFloat(efData['Current Fund Balance (£)'] ?? efData['Current Balance'] ?? 0);
+            const monthlyExpenses = parseFloat(efData['Monthly Essential Expenses (£)'] ?? efData['Monthly Essential Expenses'] ?? 1118);
+            const targetMonths = parseFloat(efData['Target Months of Cover'] ?? 3);
+            const targetAmount = monthlyExpenses * targetMonths;
+            const monthsCovered = balance / monthlyExpenses;
+            const fundedPercent = (balance / targetAmount) * 100;
+            const amountToSave = Math.max(0, targetAmount - balance);
+
+            const html = `
+                <div class="ef-circle-container">
+                    <div class="ef-circle">
+                        <svg viewBox="0 0 200 200">
+                            <circle cx="100" cy="100" r="90" fill="none" stroke="#E8C4B8" stroke-width="8"/>
+                            <circle cx="100" cy="100" r="90" fill="none" stroke="#D4A69A" stroke-width="8"
+                                    stroke-dasharray="${2 * Math.PI * 90 * (fundedPercent / 100)}" stroke-dashoffset="0"
+                                    stroke-linecap="round"/>
+                        </svg>
+                        <div class="ef-circle-text">
+                            <div class="ef-circle-value">${fundedPercent.toFixed(0)}%</div>
+                            <div class="ef-circle-label">Funded</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Fund Details</h3>
+                    <table>
+                        <tr>
+                            <td style="padding: 12px 0; color: #8B7355;">Current Balance</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${fmt(balance)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; color: #8B7355;">Target Amount</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${fmt(targetAmount)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; color: #8B7355;">Monthly Essential Expenses</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${fmt(monthlyExpenses)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; color: #8B7355;">Target Months Covered</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${targetMonths}</td>
+                        </tr>
+                        <tr style="background: #FAF7F5;">
+                            <td style="padding: 12px 0; color: #8B7355;">Months Actually Covered</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${monthsCovered.toFixed(1)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 0; color: #8B7355;">Amount Still to Save</td>
+                            <td style="text-align: right; font-weight: 600; font-size: 16px;">${fmt(amountToSave)}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                ${fundedPercent >= 100 ?
+                    `<div class="status-card" style="background: rgba(123, 166, 138, 0.1); border-left: 4px solid #7BA68A; padding: 16px; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #3D6B5E;">✓ Emergency fund target reached — ${monthsCovered.toFixed(1)} months covered</div>
+                    </div>` :
+                    `<div class="status-card warning">
+                        <div style="font-weight: 600;">⚠ ${balance > 0 ? 'Keep going' : "You haven't started your emergency fund yet"} — aim for ${fmt(targetAmount)} (${targetMonths} months of essentials)</div>
+                        <div style="font-size: 12px; margin-top: 8px;">${balance > 0 ? fmt(amountToSave) + ' left to reach your target.' : 'Building a ' + targetMonths + '-month emergency fund provides a solid safety net for unexpected expenses.'}</div>
+                    </div>`
+                }
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Pension</h3>
+                    ${(() => {
+                        const pData = live && live.pension ? live.pension : {};
+                        const pensionPot = live ? (live.pensionPot || parseFloat(pData['Current Pension Pot (£)']) || 15000) : 15000;
+                        const pensionGross = parseFloat(pData['Monthly Gross Salary (£)'] ?? 1953.34);
+                        const pensionEmployeeRate = parseFloat(pData['Employee Contribution Rate'] ?? 0.05);
+                        const pensionEmployerRate = parseFloat(pData['Employer Contribution Rate'] ?? 0.05);
+                        const pensionEmployee = parseFloat(pData['Your Monthly Contribution'] ?? pData['Employee Monthly Contribution'] ?? (pensionGross * pensionEmployeeRate));
+                        const pensionEmployer = parseFloat(pData['Employer Monthly Contribution'] ?? (pensionGross * pensionEmployerRate));
+                        const pensionTotal = parseFloat(pData['Total Monthly Into Pension'] ?? (pensionEmployee + pensionEmployer));
+                        const pensionProjected = parseFloat(pData['Projected Pot at Retirement (£)'] ?? 484177.32);
+                        const pensionAnnualIncome = parseFloat(pData['Est. Annual Retirement Income (£)'] ?? 19367.09);
+                        const pensionMonthlyIncome = parseFloat(pData['Est. Monthly Retirement Income (£)'] ?? 1613.92);
+                        const pensionYears = parseFloat(pData['Years to Retirement'] ?? 35);
+                        const pensionGrowth = parseFloat(pData['Annual Growth Rate (%)'] ?? 0.07);
+                        return `
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-bottom: 24px;">
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Current Pot</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${fmt(pensionPot)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Monthly Contribution</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">${fmt(pensionTotal)}</div>
+                        </div>
+                    </div>
+                    <table style="width: 100%; margin-bottom: 24px; font-size: 13px;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #8B7355;">Monthly Gross Salary</td>
+                            <td style="text-align: right; font-weight: 500;">${fmt(pensionGross)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #8B7355;">Employee contribution (${(pensionEmployeeRate * 100).toFixed(0)}%)</td>
+                            <td style="text-align: right; font-weight: 500;">${fmt(pensionEmployee)}/month</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #8B7355;">Employer contribution (${(pensionEmployerRate * 100).toFixed(0)}%)</td>
+                            <td style="text-align: right; font-weight: 500;">${fmt(pensionEmployer)}/month</td>
+                        </tr>
+                        <tr style="background: #FAF7F5; font-weight: 600;">
+                            <td style="padding: 8px 0;">Total Monthly</td>
+                            <td style="text-align: right;">${fmt(pensionTotal)}</td>
+                        </tr>
+                    </table>
+
+                    <div style="background: #F0DCD4; border-radius: 12px; padding: 20px;">
+                        <div style="font-size: 14px; font-weight: 600; color: #3D3229; margin-bottom: 16px;">Projected at Retirement</div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                            <div>
+                                <div style="font-size: 11px; color: #8B7355; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">${pensionYears} years, ${(pensionGrowth * 100).toFixed(0)}% growth</div>
+                                <div style="font-size: 22px; font-weight: 700; color: #3D3229;">${fmt(pensionProjected)}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: #8B7355; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Est. Annual Income</div>
+                                <div style="font-size: 22px; font-weight: 700; color: #3D3229;">${fmt(pensionAnnualIncome)}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <div style="font-size: 11px; color: #8B7355; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Est. Monthly Income</div>
+                            <div style="font-size: 22px; font-weight: 700; color: #3D3229;">${fmt(pensionMonthlyIncome)}</div>
+                        </div>
+                    </div>
+                        `;
+                    })()}
+                </div>
+            `;
+            return html;
+        }
+
+        // TAB 8: FI TRACKER
+        function tabFITracker() {
+            const live = window.LIVE;
+            const settings = live && live.settings ? live.settings : {};
+            const efDataFI = live && live.emergencyFund ? live.emergencyFund : {};
+            const fiMonthlyExpenses = parseFloat(settings['Monthly Fixed Expenses (£)'] || efDataFI['Monthly Essential Expenses (£)'] || efDataFI['Monthly Essential Expenses'] || 1118);
+            const fiVariableExpenses = parseFloat(settings['Monthly Variable Expenses (£)'] || efDataFI['Monthly Variable Expenses (£)'] || 1000);
+            const fiAnnualExpenses = parseFloat(settings['Annual Expenses (£)']) || (fiMonthlyExpenses + fiVariableExpenses) * 12;
+            const fiMultiplier = parseFloat(settings['FI Multiplier']) || 25;
+            const fiNumber = parseFloat(settings['FI Number (£)']) || fiAnnualExpenses * fiMultiplier;
+            const currentNetWorth = live ? live.netWorthTotal : 62500;
+            const progress = (currentNetWorth / fiNumber) * 100;
+            const growthRate = parseFloat(settings['Growth Rate']) || 0.07;
+            const remaining = fiNumber - currentNetWorth;
+
+            // Calculate monthly savings needed for different time horizons
+            function monthlySavingsNeeded(years) {
+                const r = growthRate / 12;
+                const n = years * 12;
+                // Future value of current net worth
+                const fvCurrent = currentNetWorth * Math.pow(1 + r, n);
+                const gap = fiNumber - fvCurrent;
+                if (gap <= 0) return 0;
+                // PMT formula: gap / ((((1+r)^n) - 1) / r)
+                return gap / ((Math.pow(1 + r, n) - 1) / r);
+            }
+            const save20 = monthlySavingsNeeded(20);
+            const save25 = monthlySavingsNeeded(25);
+            const save30 = monthlySavingsNeeded(30);
+
+            const html = `
+                <div class="fi-ring-container">
+                    <div class="fi-ring">
+                        <svg viewBox="0 0 200 200">
+                            <circle cx="100" cy="100" r="90" fill="none" stroke="#E8C4B8" stroke-width="8"/>
+                            <circle cx="100" cy="100" r="90" fill="none" stroke="#D4A69A" stroke-width="8"
+                                    stroke-dasharray="${2 * Math.PI * 90 * (progress / 100)}" stroke-dashoffset="0"
+                                    stroke-linecap="round"/>
+                        </svg>
+                        <div class="fi-ring-text">
+                            <div class="fi-ring-percent">${progress.toFixed(1)}%</div>
+                            <div class="fi-ring-label">Complete</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Your FI Number</h3>
+                    <div style="font-size: 48px; font-weight: 700; color: #2C2118; margin-bottom: 16px;">${fmt(fiNumber)}</div>
+                    <div style="background: #FAF7F5; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                        <div style="font-size: 13px; color: #8B7355; margin-bottom: 8px;">Calculation</div>
+                        <div style="font-size: 14px; color: #2C2118;">${fiMultiplier} × ${fmt(fiAnnualExpenses)} annual expenses</div>
+                        <div style="font-size: 12px; color: #8B7355; margin-top: 8px;">${fmt(fiMonthlyExpenses)}/month fixed + ${fmt(fiVariableExpenses)}/month variable = ${fmt(fiAnnualExpenses)}/year</div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 24px; padding-top: 16px; border-top: 1px solid #E8C4B8;">
+                        <div>
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Current Net Worth</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #2C2118;">${fmt(currentNetWorth)}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">Remaining to FI</div>
+                            <div style="font-size: 24px; font-weight: 700; color: #C47A6E;">${fmt(fiNumber - currentNetWorth)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title" style="margin-top: 0;">Monthly Savings Needed</h3>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                        <div style="background: #FAF7F5; border-radius: 8px; padding: 16px;">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">To reach FI in 20 years</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">~${fmt(Math.round(save20))}</div>
+                            <div style="font-size: 11px; color: #8B7355; margin-top: 8px;">at 7% growth</div>
+                        </div>
+                        <div style="background: #FAF7F5; border-radius: 8px; padding: 16px;">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">To reach FI in 25 years</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">~${fmt(Math.round(save25))}</div>
+                            <div style="font-size: 11px; color: #8B7355; margin-top: 8px;">at 7% growth</div>
+                        </div>
+                        <div style="background: #FAF7F5; border-radius: 8px; padding: 16px;">
+                            <div style="font-size: 12px; color: #8B7355; margin-bottom: 8px;">To reach FI in 30 years</div>
+                            <div style="font-size: 28px; font-weight: 700; color: #2C2118;">~${fmt(Math.round(save30))}</div>
+                            <div style="font-size: 11px; color: #8B7355; margin-top: 8px;">at 7% growth</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">10-Year Projection</h3>
+                    <div class="chart-container">
+                        <canvas id="fiProjectionChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="section-title">What-If Scenarios</h3>
+                    <div class="whatif-grid">
+                        <div class="whatif-card">
+                            <div class="whatif-card-title">Save £100 more per month</div>
+                            <div class="whatif-card-value">${(() => { const base = save25; const boosted = base + 100; const r = growthRate/12; let months = 0; let bal = currentNetWorth; while(bal < fiNumber && months < 600) { bal = bal*(1+r) + boosted; months++; } let baseM = 0; bal = currentNetWorth; while(bal < fiNumber && baseM < 600) { bal = bal*(1+r) + base; baseM++; } return ((baseM - months)/12).toFixed(1) + ' years sooner'; })()}</div>
+                            <div style="font-size: 12px; color: #8B7355; margin-top: 8px;">Extra compound growth adds up significantly</div>
+                        </div>
+                        <div class="whatif-card">
+                            <div class="whatif-card-title">Save £100 less per month</div>
+                            <div class="whatif-card-value">${(() => { const base = save25; const reduced = Math.max(0, base - 100); const r = growthRate/12; let months = 0; let bal = currentNetWorth; while(bal < fiNumber && months < 600) { bal = bal*(1+r) + reduced; months++; } let baseM = 0; bal = currentNetWorth; while(bal < fiNumber && baseM < 600) { bal = bal*(1+r) + base; baseM++; } return ((months - baseM)/12).toFixed(1) + ' years later'; })()}</div>
+                            <div style="font-size: 12px; color: #8B7355; margin-top: 8px;">Reducing contributions delays FI significantly</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return html;
+        }
+
+        tabFITracker.initCharts = function() {
+            const live = window.LIVE;
+            const projData = live && live.projections ? live.projections : projections;
+            const ctx = document.getElementById('fiProjectionChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: projData.map(p => p.year),
+                    datasets: [{
+                        label: 'Projected Net Worth',
+                        data: projData.map(p => p.end),
+                        borderColor: '#D4A69A',
+                        backgroundColor: 'rgba(212, 166, 154, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#D4A69A',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { size: 11, family: "'Inter', sans-serif" }, color: '#8B7355' },
+                            grid: { color: 'rgba(212, 166, 154, 0.1)' }
+                        }
+                    }
+                }
+            });
+            chartInstances.push(chart);
+        };
+
+        // ============================================================================
+        // TAB CONFIGURATION
+        // ============================================================================
+
+        const tabs = [
+            { id: 'overview', name: 'Overview', fn: tabOverview, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h2v8H3zm4-8h2v16H7zm4-2h2v18h-2zm4-2h2v20h-2zm4 4h2v16h-2zm4-4h2v20h-2z"/></svg>' },
+            { id: 'budget', name: 'Monthly Budget', fn: tabMonthlyBudget, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>' },
+            { id: 'annual', name: 'Annual Overview', fn: tabAnnualOverview, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-2.71-3.54-1.46 1.12 4.17 5.46 4.21-5.53-1.46-1.12z"/></svg>' },
+            { id: 'networth', name: 'Net Worth', fn: tabNetWorth, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' },
+            { id: 'invest', name: 'Investments', fn: tabInvestments, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>' },
+            { id: 'efund', name: 'Safety Net', fn: tabEmergencyFund, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.72-7 8.77V12H5V6.3l7-3.11v8.8z"/></svg>' },
+            { id: 'fi', name: 'FI Tracker', fn: tabFITracker, icon: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>' }
+        ];
+
+        // ============================================================================
+        // UI SETUP
+        // ============================================================================
+
+        const sidebar = document.getElementById('sidebar-nav');
+        const content = document.getElementById('content');
+
+        tabs.forEach((tab, index) => {
+            const btn = document.createElement('button');
+            btn.className = `sidebar-tab ${index === 0 ? 'active' : ''}`;
+            btn.innerHTML = `<span style="line-height: 1;">${tab.icon}</span><span>${tab.name}</span>`;
+            btn.title = tab.name;
+            btn.addEventListener('click', () => switchTab(tab, btn));
+            sidebar.appendChild(btn);
+        });
+
+        function switchTab(tab, btn) {
+            document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            destroyCharts();
+            content.innerHTML = tab.fn();
+
+            // Setup month selector for budget tab — handled separately below
+            // For non-budget tabs, init charts immediately
+            if (tab.id !== 'budget') {
+                setTimeout(() => {
+                    if (tab.fn.initCharts) {
+                        tab.fn.initCharts();
+                    }
+                }, 0);
+            }
+
+            // Setup month selector for budget tab
+            if (tab.id === 'budget') {
+                document.querySelectorAll('.month-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        currentMonth = btn.dataset.month;
+                        destroyCharts();
+                        document.getElementById('budget-content').innerHTML = tabMonthlyBudget.renderMonth(currentMonth);
+                        setTimeout(() => {
+                            tabMonthlyBudget.initCharts();
+                        }, 0);
+                    });
+                });
+                currentMonth = 'Jan';
+                document.getElementById('budget-content').innerHTML = tabMonthlyBudget.renderMonth('Jan');
+                setTimeout(() => {
+                    tabMonthlyBudget.initCharts();
+                }, 0);
+            }
+        }
+
+        // Initialize first tab
+        window.addEventListener('load', () => {
+            const firstBtn = document.querySelector('.sidebar-tab');
+            switchTab(tabs[0], firstBtn);
+        });
+
+        // Initialize Google Sheets API when libraries are loaded
+        function initGoogleAPI() {
+            if (typeof google !== 'undefined' && google.accounts) {
+                SheetsAPI.init();
+            } else {
+                // Libraries not loaded yet (might be offline or blocked), show config message
+                SheetsAPI.updateStatus('config');
+            }
+        }
+
+        // Try to init after a short delay to let Google scripts load
+        setTimeout(initGoogleAPI, 1500);
+    </script>
+</body>
+</html>
