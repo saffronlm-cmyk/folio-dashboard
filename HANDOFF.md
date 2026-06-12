@@ -8,9 +8,11 @@ _Last updated: 2026-06-12. Read this first when picking the project back up._
 
 A working, single-file personal finance dashboard (`index.html`) that reads transactions live from the **Emma** Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator.
 
-**Done and verified:** Overview, Categories (spend + income), Savings, Income estimator, Google Sheets connection, period filtering, mock fallback, localStorage persistence.
+**Done and verified:** Overview, Categories (spend + income), Savings, Income estimator, **Investments (Phase 1, manual)**, Google Sheets connection, period filtering, mock fallback, localStorage persistence.
 
-**Next builds (designs in §8):** (1) hosting + Supabase, (2) Budget estimator tab, (3) Investments portfolio tab.
+**Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`. OAuth origin `https://saffronlm-cmyk.github.io` must be added to the client's Authorized JavaScript origins (Google Cloud Console) for sign-in to work there.
+
+**Next builds (designs in §8):** (1) Supabase backend, (2) Budget estimator tab, (3) Investments **Phase 2** (live prices).
 
 > The canonical file is now `emma-dashboard/index.html`. The previous working copy at `../folio/Emma_Dashboard.html` is **legacy** — don't edit it.
 
@@ -65,6 +67,8 @@ Connect Google → SheetsAPI.fetchData()
 
 **Income estimator** — FOH (**hours/month** × rate), DA (**shifts × editable day rate**), pooled PAYE tax, **pension net-pay model**, grand total (net + cash), **monthly "save as target"**, and the **Holiday Pay estimator** (quick calc + editable payslip log, 13 payslips pre-loaded).
 
+**Investments (Phase 1, manual)** — two-level drill-down. **Level 1 (portfolio):** 3 KPIs (total value · gain/loss £+% · cost basis), allocation donut by account (`makeDonut`), clickable account cards. **Level 2 (account, drill-in with back link):** scoped KPIs + a **Trading-212-style treemap** (`chartjs-chart-treemap` plugin — tiles sized by £ value, ticker + % inside, green/red by P/L) + holdings table with add/edit/delete. Holdings live in `HOLDINGS` (Store key `holdings`, keyed by account name; seeded defaults double as the demo state like `ACCOUNTS`). Investment-account net-worth value is now **derived** (`accountValue()` = Σ units×price) and feeds the Savings net-worth donut. `INV_VIEW = {level, account}` drives the drill-down; rendered lazily on tab switch (treemap needs a visible, sized container).
+
 ---
 
 ## 5. Data sources & secrets
@@ -109,8 +113,8 @@ Connect Google → SheetsAPI.fetchData()
 
 ### 8c. Investments portfolio tab
 - **Model:** `account → holdings[] {ticker, name, units, avgCost, lastPrice, currency}` (Store-persisted). Account value = Σ(units × price) → feeds the net-worth donut.
-- **Phase 1 (manual):** add holdings per investment account; show units, price, value, gain/loss vs avg cost; allocation donut.
-- **Phase 2 (live prices):**
+- **Phase 1 (manual): ✅ DONE** — see §4. Investment accounts are `ACCOUNTS` of type `investment`/`gia`/`crypto`; holdings keyed by account name in `HOLDINGS`. Treemap via `chartjs-chart-treemap@3.1.0` (CDN).
+- **Phase 2 (live prices) — TODO:** the Folio dashboard with the Yahoo price pattern (GBX→GBP + 5-min cache) was **not** present in this repo when Phase 1 was built (`../folio/Folio_Dashboard.html` missing). Either add it or write the fetcher fresh. Trading 212/Binance need API keys → defer to the Supabase backend (don't put keys in client code). Smart Pension stays manual. Wire live prices into `holding.lastPrice` then re-render; `accountValue()` already flows it through to net worth.
   - ETFs/stocks (ISA, GIA) → **Yahoo Finance** via CORS proxy. **The exact pattern (incl. GBX→GBP + 5-min cache) already exists in `../folio/Folio_Dashboard.html`** — lift it from there.
   - **Trading 212** → official API with an API key; can pull actual positions, not just prices.
   - **Binance** → API or manual.
@@ -120,11 +124,10 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 9. Resume steps (next session)
 
-1. `git init` in this folder, commit, push to the new GitHub repo.
-2. Enable Pages (or Netlify) → get the live URL.
-3. Add the live URL to the OAuth client's authorized origins.
-4. Open the hosted site, Connect Google Sheets, verify live Emma data loads.
-5. Start **8b (Budget tab)** — it's the highest-value next feature and reuses existing aggregation.
+1. **OAuth (console step, do once):** Google Cloud Console → APIs & Services → Credentials → OAuth client `185610168060-…` → **Authorized JavaScript origins** → add `https://saffronlm-cmyk.github.io` (keep `http://localhost:9000`). If "Access blocked", add `saffronlm@gmail.com` under OAuth consent screen → Test users.
+2. Open the hosted site, Connect Google Sheets, verify live Emma data loads. Note: hosted origin has its own localStorage, so accounts/holdings/targets start from the seeded defaults there.
+3. Build **8b (Budget tab)** — highest-value remaining feature; reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast.
+4. Investments **Phase 2** (live prices) when ready — see §8c.
 
 ---
 
