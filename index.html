@@ -6,6 +6,7 @@
     <title>Emma Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -537,6 +538,17 @@
         }
         .add-acc-btn:hover { border-color: var(--accent); color: var(--text); background: rgba(212,166,154,0.05); }
 
+        /* ─── INVESTMENTS ─────────────────────────── */
+        .acc-card.clickable { cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+        .acc-card.clickable:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .acc-chev { color: var(--muted); font-size: 18px; margin-left: 4px; }
+        .back-link { font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; margin-bottom: 14px; display: inline-block; }
+        .back-link:hover { color: var(--accent); }
+        .inv-tree-wrap { position: relative; height: 300px; width: 100%; margin-top: 6px; }
+        .pl-pos { color: var(--positive); }
+        .pl-neg { color: var(--negative); }
+        .hold-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
         /* ─── MODAL ───────────────────────────────── */
         .overlay {
             position: fixed; inset: 0;
@@ -798,6 +810,10 @@
         <span class="nav-icon">↗</span>
         <span>Savings</span>
     </div>
+    <div class="nav-item" onclick="switchTab('investments',this)">
+        <span class="nav-icon">◆</span>
+        <span>Investments</span>
+    </div>
     <div class="nav-item" onclick="switchTab('income',this)">
         <span class="nav-icon">⚑</span>
         <span>Income</span>
@@ -1002,7 +1018,46 @@
     <button class="add-acc-btn" onclick="openModal()">+ Add account</button>
 </div>
 
-<!-- ═══════════════════════════════ TAB 4: INCOME ══ -->
+<!-- ═══════════════════════════ TAB 4: INVESTMENTS ══ -->
+<div class="page" id="tab-investments">
+
+    <!-- ── LEVEL 1: PORTFOLIO LANDING ─────────────── -->
+    <div id="inv-portfolio">
+        <p class="page-meta" style="margin-top:20px;margin-bottom:16px">Portfolio · manual prices (live prices coming later)</p>
+        <div class="cat-kpi-grid" id="inv-kpis" style="margin-bottom:18px"></div>
+        <div class="chart-card" style="margin-bottom:18px;display:flex;gap:28px;align-items:center;flex-wrap:wrap">
+            <div>
+                <div class="chart-title">Allocation by account</div>
+                <div class="donut-wrap">
+                    <canvas id="invDonut"></canvas>
+                    <div class="donut-center">
+                        <div class="donut-cv" id="inv-donut-total">—</div>
+                        <div class="donut-cl">invested</div>
+                    </div>
+                </div>
+            </div>
+            <div class="legend" id="inv-donut-legend" style="flex:1;min-width:200px;margin-top:0"></div>
+        </div>
+        <div class="chart-title" style="margin-bottom:11px">Investment accounts</div>
+        <div id="inv-acc-list" style="display:flex;flex-direction:column;gap:9px"></div>
+    </div>
+
+    <!-- ── LEVEL 2: ACCOUNT DETAIL ────────────────── -->
+    <div id="inv-account" style="display:none">
+        <div class="back-link" onclick="backToPortfolio()" style="margin-top:20px">← Back to portfolio</div>
+        <div class="chart-title" id="inv-acc-title" style="font-size:20px;margin-bottom:14px">—</div>
+        <div class="cat-kpi-grid" id="inv-acc-kpis" style="margin-bottom:18px"></div>
+        <div class="chart-card" style="margin-bottom:18px">
+            <div class="chart-title">Holdings map</div>
+            <div class="inv-tree-wrap"><canvas id="invTreemap"></canvas></div>
+        </div>
+        <div class="chart-title" style="margin-bottom:11px">Holdings</div>
+        <div id="inv-holdings-list" style="display:flex;flex-direction:column;gap:9px"></div>
+        <button class="add-acc-btn" onclick="openHoldingModal()">+ Add holding</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════ TAB 5: INCOME ══ -->
 <div class="page" id="tab-income">
     <p class="page-meta" style="margin-top:20px;margin-bottom:20px">UK 2025/26 tax year · PAYE</p>
 
@@ -1209,6 +1264,53 @@
     </div>
 </div>
 
+<!-- ═══════════════════════ ADD HOLDING MODAL ═══════ -->
+<div class="overlay" id="holding-modal">
+    <div class="modal">
+        <div class="modal-title" id="h-modal-title">Add Holding</div>
+        <div class="fr">
+            <div class="fg">
+                <label class="fl">Ticker</label>
+                <input class="fi" type="text" id="h-ticker" placeholder="e.g. VWRP">
+            </div>
+            <div class="fg">
+                <label class="fl">Currency</label>
+                <select class="fs" id="h-currency">
+                    <option value="GBP">GBP £</option>
+                    <option value="USD">USD $</option>
+                    <option value="EUR">EUR €</option>
+                </select>
+            </div>
+        </div>
+        <div class="fg">
+            <label class="fl">Name</label>
+            <input class="fi" type="text" id="h-name" placeholder="e.g. Vanguard FTSE All-World">
+        </div>
+        <div class="fr">
+            <div class="fg">
+                <label class="fl">Units</label>
+                <input class="fi" type="number" id="h-units" placeholder="0" step="any">
+            </div>
+            <div class="fg">
+                <label class="fl">Avg cost</label>
+                <div class="pfx"><span class="pfx-sym">£</span>
+                    <input class="fi" type="number" id="h-avgcost" placeholder="0.00" step="any">
+                </div>
+            </div>
+            <div class="fg">
+                <label class="fl">Last price</label>
+                <div class="pfx"><span class="pfx-sym">£</span>
+                    <input class="fi" type="number" id="h-price" placeholder="0.00" step="any">
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-g" onclick="closeHoldingModal()">Cancel</button>
+            <button class="btn-p" id="h-modal-save" onclick="saveHolding()">Add Holding</button>
+        </div>
+    </div>
+</div>
+
 <script>
 'use strict';
 
@@ -1349,6 +1451,18 @@ let ACCOUNTS = Store.get('accounts', [
     { name:'Emergency Fund', type:'savings',    inst:'Monzo',       bal:2450, prev:2450, updated:'' },
 ]);
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
+
+/* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
+   Seeded defaults double as the populated demo state — like ACCOUNTS,
+   the defaults are treated as real data and persist on first edit. */
+let HOLDINGS = Store.get('holdings', {
+    'S&S ISA': [
+        { ticker:'VWRP', name:'Vanguard FTSE All-World', units:18, avgCost:95.20,  lastPrice:102.50, currency:'GBP' },
+        { ticker:'AAPL', name:'Apple Inc.',              units:3,  avgCost:180.00, lastPrice:195.30, currency:'GBP' },
+        { ticker:'NVDA', name:'NVIDIA Corp.',            units:2,  avgCost:110.00, lastPrice:125.40, currency:'GBP' },
+        { ticker:'TSLA', name:'Tesla Inc.',              units:1,  avgCost:240.00, lastPrice:178.20, currency:'GBP' },
+    ],
+});
 
 /* ════════════════════════════════════════════════════
    STATE
@@ -2029,6 +2143,7 @@ function switchTab(name, el) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     el.classList.add('active');
+    if (name === 'investments') renderInvestments();  // render once container is visible (treemap needs size)
 }
 function setToggle(mode, el) {
     document.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
@@ -2044,15 +2159,15 @@ const BICO  = { isa:'🏦', investment:'📈', gia:'📊', savings:'💰', pensi
 const BICOBG= { isa:'rgba(212,166,154,0.15)', investment:'rgba(100,130,200,0.15)', gia:'rgba(100,130,200,0.15)', savings:'rgba(123,166,138,0.15)', pension:'rgba(139,115,85,0.15)', crypto:'rgba(214,158,90,0.18)' };
 
 function renderAccounts() {
-    const total = ACCOUNTS.reduce((s,a)=>s+(+a.bal||0),0);
+    const total = ACCOUNTS.reduce((s,a)=>s+accountValue(a),0);
     const prevTotal = ACCOUNTS.reduce((s,a)=>s+(+a.prev||0),0);
     const diff = total - prevTotal;
-    document.getElementById('nw-total').textContent = '£' + total.toLocaleString();
+    document.getElementById('nw-total').textContent = '£' + Math.round(total).toLocaleString();
     document.getElementById('nw-change').textContent = diff===0 ? '→ No change vs last entry'
-        : (diff>0 ? `↑ +£${diff.toLocaleString()} vs last entry` : `↓ -£${Math.abs(diff).toLocaleString()} vs last entry`);
+        : (diff>0 ? `↑ +£${Math.round(diff).toLocaleString()} vs last entry` : `↓ -£${Math.abs(Math.round(diff)).toLocaleString()} vs last entry`);
 
     document.getElementById('acc-list').innerHTML = ACCOUNTS.map((a,i) => {
-        const ch = (+a.bal||0) - (+a.prev||0);
+        const ch = accountValue(a) - (+a.prev||0);
         const chTxt = ch===0 ? '→ unchanged' : (ch>0 ? `↑ +£${ch.toLocaleString()}` : `↓ -£${Math.abs(ch).toLocaleString()}`);
         const chCol = ch>0 ? 'var(--positive)' : ch<0 ? 'var(--negative)' : 'var(--muted)';
         const upd = a.updated ? ` · ${a.updated}` : '';
@@ -2063,7 +2178,7 @@ function renderAccounts() {
                 <div class="acc-inst">${a.inst||'—'}${upd}</div>
             </div>
             <div style="text-align:right">
-                <div class="acc-bal">£${(+a.bal||0).toLocaleString()}</div>
+                <div class="acc-bal">£${Math.round(accountValue(a)).toLocaleString()}</div>
                 <div class="acc-ch" style="color:${chCol}">${chTxt}</div>
             </div>
             <div style="display:flex;gap:5px;margin-left:10px">
@@ -2081,14 +2196,14 @@ function renderNetWorthDonut(total) {
     if (CHART_NW) { CHART_NW.destroy(); CHART_NW = null; }
     const canvas = document.getElementById('nwChart');
     if (!canvas) return;
-    document.getElementById('nw-donut-total').textContent = '£' + total.toLocaleString();
+    document.getElementById('nw-donut-total').textContent = '£' + Math.round(total).toLocaleString();
     document.getElementById('nw-legend').innerHTML = ACCOUNTS.map(a =>
-        `<div class="leg-item"><div class="leg-dot" style="background:${TYPECOL[a.type]||'#C9B8A8'}"></div><span class="leg-name">${a.name}</span><span class="leg-amt">£${(+a.bal||0).toLocaleString()}</span></div>`
+        `<div class="leg-item"><div class="leg-dot" style="background:${TYPECOL[a.type]||'#C9B8A8'}"></div><span class="leg-name">${a.name}</span><span class="leg-amt">£${Math.round(accountValue(a)).toLocaleString()}</span></div>`
     ).join('') || '<div class="empty-state">No accounts</div>';
     if (!ACCOUNTS.length) return;
     CHART_NW = new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels:ACCOUNTS.map(a=>a.name), datasets:[{ data:ACCOUNTS.map(a=>+a.bal||0), backgroundColor:ACCOUNTS.map(a=>TYPECOL[a.type]||'#C9B8A8'), borderWidth:2, borderColor:'#FFFFFF', hoverBorderWidth:3 }] },
+        data: { labels:ACCOUNTS.map(a=>a.name), datasets:[{ data:ACCOUNTS.map(a=>Math.round(accountValue(a))), backgroundColor:ACCOUNTS.map(a=>TYPECOL[a.type]||'#C9B8A8'), borderWidth:2, borderColor:'#FFFFFF', hoverBorderWidth:3 }] },
         options: {
             responsive:true, maintainAspectRatio:true, cutout:'66%',
             plugins: {
@@ -2139,6 +2254,205 @@ function deleteAccount(idx) {
     if (!confirm(`Delete "${ACCOUNTS[idx].name}"?`)) return;
     ACCOUNTS.splice(idx, 1);
     Store.set('accounts', ACCOUNTS);
+    renderAccounts();
+}
+
+/* ── INVESTMENTS (Store-persisted holdings) ────────── */
+const INVESTABLE = ['investment', 'gia', 'crypto'];
+let INV_VIEW = { level:'portfolio', account:null };
+let CHART_INVDONUT = null, CHART_TREEMAP = null;
+
+function holdingsFor(name)    { return HOLDINGS[name] || []; }
+function holdingValue(h)      { return (+h.units || 0) * (+h.lastPrice || 0); }
+function holdingCost(h)       { return (+h.units || 0) * (+h.avgCost || 0); }
+function accountInvValue(name){ return holdingsFor(name).reduce((s,h) => s + holdingValue(h), 0); }
+function accountInvCost(name) { return holdingsFor(name).reduce((s,h) => s + holdingCost(h), 0); }
+function investAccounts()     { return ACCOUNTS.filter(a => INVESTABLE.includes(a.type)); }
+
+/* Net-worth value: derived from holdings if the account has any, else the typed balance. */
+function accountValue(a) {
+    const h = holdingsFor(a.name);
+    return h.length ? accountInvValue(a.name) : (+a.bal || 0);
+}
+
+const plClass = n => n > 0 ? 'pl-pos' : n < 0 ? 'pl-neg' : '';
+const plTxt   = n => (n > 0 ? '+' : n < 0 ? '−' : '') + '£' + Math.abs(Math.round(n)).toLocaleString();
+function kpiCard(name, val, cls) {
+    return `<div class="ckpi"><div class="ckpi-name">${name}</div><div class="ckpi-val ${cls||''}">${val}</div></div>`;
+}
+
+function renderInvestments() {
+    // guard against a stale account drill-down
+    if (INV_VIEW.level === 'account' && !investAccounts().some(a => a.name === INV_VIEW.account)) {
+        INV_VIEW = { level:'portfolio', account:null };
+    }
+    const onAccount = INV_VIEW.level === 'account';
+    document.getElementById('inv-portfolio').style.display = onAccount ? 'none' : 'block';
+    document.getElementById('inv-account').style.display   = onAccount ? 'block' : 'none';
+    if (onAccount) renderInvAccount(INV_VIEW.account);
+    else renderInvPortfolio();
+}
+
+function renderInvPortfolio() {
+    const accs = investAccounts();
+    const totalVal  = accs.reduce((s,a) => s + accountInvValue(a.name), 0);
+    const totalCost = accs.reduce((s,a) => s + accountInvCost(a.name), 0);
+    const gain = totalVal - totalCost;
+    const gainPct = totalCost ? gain / totalCost * 100 : 0;
+
+    document.getElementById('inv-kpis').innerHTML =
+        kpiCard('Total value', '£' + Math.round(totalVal).toLocaleString()) +
+        kpiCard('Gain / loss', `${plTxt(gain)} · ${gainPct >= 0 ? '+' : '−'}${Math.abs(gainPct).toFixed(1)}%`, plClass(gain)) +
+        kpiCard('Cost basis', '£' + Math.round(totalCost).toLocaleString());
+
+    // allocation donut by account (reuses makeDonut)
+    if (CHART_INVDONUT) { CHART_INVDONUT.destroy(); CHART_INVDONUT = null; }
+    const cats = accs.map(a => ({ name:a.name, amt:Math.round(accountInvValue(a.name)), color:TYPECOL[a.type] || '#C9B8A8' }))
+                     .filter(c => c.amt > 0);
+    CHART_INVDONUT = makeDonut('invDonut', 'inv-donut-total', 'inv-donut-legend', cats, Math.round(totalVal), 'invested');
+
+    // account cards (clickable → drill-in)
+    document.getElementById('inv-acc-list').innerHTML = accs.map(a => {
+        const val  = accountInvValue(a.name);
+        const cost = accountInvCost(a.name);
+        const g    = val - cost;
+        const n    = holdingsFor(a.name).length;
+        const sub  = n ? `${n} holding${n === 1 ? '' : 's'}` : 'No holdings yet — tap to add';
+        return `<div class="acc-card clickable" onclick="openInvAccount('${a.name.replace(/'/g, "\\'")}')">
+            <div class="acc-type-icon" style="background:${BICOBG[a.type] || BICOBG.savings}">${BICO[a.type] || '📈'}</div>
+            <div class="acc-info">
+                <div class="acc-name">${a.name} <span class="acc-badge ${BADGE[a.type] || 'b-investment'}">${BLBL[a.type] || a.type}</span></div>
+                <div class="acc-inst">${a.inst || '—'} · ${sub}</div>
+            </div>
+            <div style="text-align:right">
+                <div class="acc-bal">£${Math.round(val).toLocaleString()}</div>
+                <div class="acc-ch ${plClass(g)}">${plTxt(g)}</div>
+            </div>
+            <div class="acc-chev">›</div>
+        </div>`;
+    }).join('') || '<div class="empty-state">No investment accounts. Add one on the Savings tab (type S&S ISA, GIA, or Crypto).</div>';
+}
+
+function openInvAccount(name) { INV_VIEW = { level:'account', account:name }; renderInvestments(); }
+function backToPortfolio()    { INV_VIEW = { level:'portfolio', account:null }; renderInvestments(); }
+
+function renderInvAccount(name) {
+    const acc  = ACCOUNTS.find(a => a.name === name);
+    const hs   = holdingsFor(name);
+    const val  = accountInvValue(name);
+    const cost = accountInvCost(name);
+    const gain = val - cost;
+    const gainPct = cost ? gain / cost * 100 : 0;
+
+    document.getElementById('inv-acc-title').innerHTML =
+        `${name} <span class="acc-badge ${BADGE[acc?.type] || 'b-investment'}" style="vertical-align:middle">${BLBL[acc?.type] || 'Investment'}</span>`;
+    document.getElementById('inv-acc-kpis').innerHTML =
+        kpiCard('Value', '£' + Math.round(val).toLocaleString()) +
+        kpiCard('Gain / loss', `${plTxt(gain)} · ${gainPct >= 0 ? '+' : '−'}${Math.abs(gainPct).toFixed(1)}%`, plClass(gain)) +
+        kpiCard('Cost basis', '£' + Math.round(cost).toLocaleString());
+
+    renderTreemap(hs, val);
+
+    document.getElementById('inv-holdings-list').innerHTML = hs.map((h, i) => {
+        const hv = holdingValue(h), hc = holdingCost(h), g = hv - hc;
+        const gp = hc ? g / hc * 100 : 0;
+        const pct = val ? Math.round(hv / val * 100) : 0;
+        return `<div class="acc-card">
+            <div class="acc-info">
+                <div class="acc-name">${h.ticker || '—'} <span class="acc-inst" style="margin:0">${pct}%</span></div>
+                <div class="hold-sub">${h.name || ''} · ${(+h.units || 0)} @ £${(+h.avgCost || 0).toLocaleString()} → £${(+h.lastPrice || 0).toLocaleString()}</div>
+            </div>
+            <div style="text-align:right">
+                <div class="acc-bal">£${Math.round(hv).toLocaleString()}</div>
+                <div class="acc-ch ${plClass(g)}">${plTxt(g)} · ${gp >= 0 ? '+' : '−'}${Math.abs(gp).toFixed(1)}%</div>
+            </div>
+            <div style="display:flex;gap:5px;margin-left:10px">
+                <button class="log-del" title="Edit" onclick="openHoldingModal(${i})">✎</button>
+                <button class="log-del" title="Delete" onclick="deleteHolding(${i})">×</button>
+            </div>
+        </div>`;
+    }).join('') || '<div class="empty-state">No holdings yet — add one below.</div>';
+}
+
+function renderTreemap(hs, total) {
+    if (CHART_TREEMAP) { CHART_TREEMAP.destroy(); CHART_TREEMAP = null; }
+    const canvas = document.getElementById('invTreemap');
+    if (!canvas || !hs.length) return;
+    const tree = hs.map(h => {
+        const hv = holdingValue(h), hc = holdingCost(h);
+        return { ticker:h.ticker || '—', value:Math.max(hv, 0.01), pl:hv - hc, pct:total ? Math.round(hv / total * 100) : 0 };
+    });
+    CHART_TREEMAP = new Chart(canvas.getContext('2d'), {
+        type: 'treemap',
+        data: { datasets: [{
+            tree, key: 'value',
+            borderWidth: 2, borderColor: '#FFFFFF', spacing: 1,
+            backgroundColor: (c) => {
+                if (c.type !== 'data') return 'transparent';
+                return c.raw._data.pl >= 0 ? '#7BA68A' : '#C47A6E';
+            },
+            labels: {
+                display: true, color: '#FFFFFF', font: { size: 13, weight: '600' }, family: 'Inter',
+                formatter: (c) => [c.raw._data.ticker, c.raw._data.pct + '%'],
+            },
+        }]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { title: () => '', label: (c) => `${c.raw._data.ticker} · £${Math.round(c.raw._data.value).toLocaleString()} (${c.raw._data.pct}%)` } },
+            },
+        },
+    });
+}
+
+/* ── Holding add/edit/delete ───────────────────────── */
+let _holdIdx = -1;
+function openHoldingModal(idx = -1) {
+    _holdIdx = (typeof idx === 'number' && idx >= 0) ? idx : -1;
+    const setV = (id, v) => document.getElementById(id).value = v;
+    if (_holdIdx >= 0) {
+        const h = holdingsFor(INV_VIEW.account)[_holdIdx];
+        setV('h-ticker', h.ticker || ''); setV('h-name', h.name || ''); setV('h-units', h.units);
+        setV('h-avgcost', h.avgCost); setV('h-price', h.lastPrice); setV('h-currency', h.currency || 'GBP');
+        document.getElementById('h-modal-title').textContent = 'Edit Holding';
+        document.getElementById('h-modal-save').textContent = 'Save Holding';
+    } else {
+        ['h-ticker', 'h-name', 'h-units', 'h-avgcost', 'h-price'].forEach(id => setV(id, ''));
+        setV('h-currency', 'GBP');
+        document.getElementById('h-modal-title').textContent = 'Add Holding';
+        document.getElementById('h-modal-save').textContent = 'Add Holding';
+    }
+    document.getElementById('holding-modal').classList.add('open');
+}
+function closeHoldingModal() { document.getElementById('holding-modal').classList.remove('open'); _holdIdx = -1; }
+function saveHolding() {
+    const ticker = document.getElementById('h-ticker').value.trim().toUpperCase();
+    if (!ticker) { alert('Enter a ticker.'); return; }
+    const h = {
+        ticker,
+        name:      document.getElementById('h-name').value.trim(),
+        units:     parseFloat(document.getElementById('h-units').value) || 0,
+        avgCost:   parseFloat(document.getElementById('h-avgcost').value) || 0,
+        lastPrice: parseFloat(document.getElementById('h-price').value) || 0,
+        currency:  document.getElementById('h-currency').value,
+    };
+    const acct = INV_VIEW.account;
+    if (!HOLDINGS[acct]) HOLDINGS[acct] = [];
+    if (_holdIdx >= 0) HOLDINGS[acct][_holdIdx] = h;
+    else HOLDINGS[acct].push(h);
+    Store.set('holdings', HOLDINGS);
+    closeHoldingModal();
+    renderInvestments();
+    renderAccounts();   // keep net worth in sync
+}
+function deleteHolding(idx) {
+    const acct = INV_VIEW.account;
+    const h = holdingsFor(acct)[idx];
+    if (!h || !confirm(`Delete "${h.ticker}"?`)) return;
+    HOLDINGS[acct].splice(idx, 1);
+    Store.set('holdings', HOLDINGS);
+    renderInvestments();
     renderAccounts();
 }
 
