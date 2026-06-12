@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<!--
+  REFERENCE COPY — Saffron's original standalone Holiday Pay Estimator.
+  The logic and pre-loaded payslip data from this file were ported into the
+  dashboard's Income tab (Holiday Pay Estimator section). Kept here for reference
+  and as the source of truth for the methodology (ONE LDN 360 Clause 6.2,
+  52-week rolling average, hours-first). Not used by the app at runtime.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Holiday Pay Estimator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1612; --paper: #f5f0e8; --cream: #ede7d8;
+      --rule: #c8b99a; --accent: #c4622d; --accent-light: #e8c4a8; --muted: #7a6e61;
+    }
+    body {
+      background: var(--paper); color: var(--ink);
+      font-family: 'DM Mono', monospace; min-height: 100vh; padding: 2.4rem 1rem 5rem;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(168,147,116,0.07) 28px, rgba(168,147,116,0.07) 29px),
+        repeating-linear-gradient(90deg, transparent, transparent 28px, rgba(168,147,116,0.05) 28px, rgba(168,147,116,0.05) 29px);
+      pointer-events: none; z-index: 0;
+    }
+    .wrap { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; }
+
+    header { border-bottom: 2px solid var(--ink); padding-bottom: 1rem; margin-bottom: 2.2rem; }
+    .eyebrow { font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
+    h1 { font-family: 'Instrument Serif', serif; font-size: 2rem; font-weight: 400; line-height: 1.1; }
+    h1 em { font-style: italic; color: var(--accent); }
+    .subhead { margin-top: 0.45rem; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.03em; }
+
+    .tabs { display: flex; border-bottom: 1px solid var(--rule); margin-bottom: 1.8rem; }
+    .tab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+      padding: 0.55rem 1.1rem; font-family: 'DM Mono', monospace; font-size: 0.68rem;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .sec { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rule);
+      border-top: 1px solid var(--cream); padding-top: 0.6rem; margin: 1.4rem 0 1rem; }
+
+    .fields { display: flex; flex-direction: column; gap: 1rem; }
+    .field { display: flex; flex-direction: column; gap: 0.28rem; }
+    label { font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .hint { font-size: 0.62rem; color: var(--rule); }
+    input[type="number"] {
+      background: var(--cream); border: 1px solid var(--rule); border-radius: 3px;
+      padding: 0.6rem 0.8rem; font-family: 'DM Mono', monospace; font-size: 0.98rem;
+      color: var(--ink); width: 100%; transition: border-color 0.15s, background 0.15s;
+      -moz-appearance: textfield;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input:focus { outline: none; border-color: var(--accent); background: #fff; }
+    .divider { border: none; border-top: 1px solid var(--rule); margin: 0.3rem 0; }
+
+    .log-wrap { border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; margin-top: 0.6rem; }
+    .log-head {
+      display: grid; grid-template-columns: 100px 1fr 1fr 1fr 32px;
+      background: var(--ink); color: var(--paper);
+      font-size: 0.57rem; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 0.45rem 0.7rem; gap: 0.5rem; align-items: center;
+    }
+    .log-row {
+      display: grid; grid-template-columns: 100px 1fr 1fr 1fr 32px;
+      gap: 0.5rem; padding: 0.35rem 0.7rem; border-bottom: 1px solid var(--cream); align-items: center;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-row:nth-child(even) { background: rgba(200,185,154,0.08); }
+    .row-label { font-size: 0.65rem; color: var(--muted); }
+    .log-row input[type="number"] { padding: 0.28rem 0.4rem; font-size: 0.78rem; border-radius: 2px; }
+    .del-btn { background: none; border: 1px solid var(--rule); border-radius: 2px; color: var(--muted);
+      cursor: pointer; font-size: 0.7rem; padding: 0.18rem 0.35rem; font-family: 'DM Mono', monospace;
+      transition: all 0.12s; line-height: 1; }
+    .del-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .add-row-btn { margin-top: 0.6rem; width: 100%; background: none; border: 1px dashed var(--rule);
+      border-radius: 3px; padding: 0.45rem; font-family: 'DM Mono', monospace; font-size: 0.68rem;
+      letter-spacing: 0.08em; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .add-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .prefilled-tag { display: inline-block; background: var(--accent); color: var(--paper);
+      font-size: 0.55rem; letter-spacing: 0.1em; padding: 0.15rem 0.45rem; border-radius: 2px;
+      text-transform: uppercase; vertical-align: middle; margin-left: 0.4rem; }
+
+    .calc-btn { margin-top: 1.4rem; width: 100%; background: var(--ink); color: var(--paper); border: none;
+      border-radius: 3px; padding: 0.85rem; font-family: 'DM Mono', monospace; font-size: 0.72rem;
+      letter-spacing: 0.16em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+    .calc-btn:hover { opacity: 0.82; transform: translateY(-1px); }
+    .calc-btn:active { transform: translateY(0); }
+
+    #results { margin-top: 1.8rem; display: none; }
+    .result-card { background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1.6rem 1.8rem; position: relative; overflow: hidden; }
+    .result-card::after { content: ''; position: absolute; bottom: -40px; right: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(196,98,45,0.18) 0%, transparent 70%); pointer-events: none; }
+    .res-eyebrow { font-size: 0.57rem; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(245,240,232,0.38); margin-bottom: 1rem; }
+    .res-main { margin-bottom: 1.4rem; }
+    .res-label { font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(245,240,232,0.45); margin-bottom: 0.15rem; }
+    .res-big { font-family: 'Instrument Serif', serif; font-size: 3rem; line-height: 1; color: var(--accent-light); }
+    .res-sub { font-size: 0.65rem; color: rgba(245,240,232,0.4); margin-top: 0.2rem; }
+    .res-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; border-top: 1px solid rgba(245,240,232,0.1); padding-top: 1.1rem; }
+    .stat { background: rgba(245,240,232,0.04); border: 1px solid rgba(245,240,232,0.07); border-radius: 3px; padding: 0.55rem 0.65rem; }
+    .stat-label { font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(245,240,232,0.35); margin-bottom: 0.15rem; }
+    .stat-val { font-size: 0.88rem; color: var(--paper); }
+    .workings { margin-top: 1rem; font-size: 0.63rem; color: rgba(245,240,232,0.35); line-height: 1.8; font-style: italic; border-top: 1px solid rgba(245,240,232,0.08); padding-top: 0.8rem; }
+    .warn-box { margin-top: 0.8rem; border-left: 3px solid var(--accent); padding: 0.6rem 0.8rem; background: rgba(196,98,45,0.1); font-size: 0.63rem; line-height: 1.6; color: rgba(245,240,232,0.6); }
+    .warn-box strong { color: var(--accent-light); }
+
+    footer { margin-top: 2.4rem; border-top: 1px solid var(--rule); padding-top: 0.9rem; font-size: 0.6rem; color: var(--muted); line-height: 1.7; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">ONE LDN 360 Limited — Clause 6.2</p>
+    <h1>Holiday Pay <em>Estimator</em></h1>
+    <p class="subhead">52-week rolling average · hours-first · Jun 2025–May 2026 pre-loaded</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('quick')">Quick calc</button>
+    <button class="tab" onclick="switchTab('log')">Payslip log</button>
+  </div>
+
+  <div class="panel active" id="panel-quick">
+    <div class="fields">
+      <div class="field">
+        <label>Total hours worked <span class="prefilled-tag">pre-filled</span></label>
+        <p class="hint">All worked hours — FOH shifts + DA days. Exclude holiday leave hours.</p>
+        <input type="number" id="q-hours" value="1641.43" step="0.25" />
+      </div>
+      <div class="field">
+        <label>Total gross earnings £ <span class="prefilled-tag">pre-filled</span></label>
+        <p class="hint">Wages + bonus + commission only. Holiday pay received excluded.</p>
+        <input type="number" id="q-earnings" value="25534.12" step="0.01" />
+      </div>
+      <hr class="divider" />
+      <div class="field">
+        <label>Paid weeks in period</label>
+        <p class="hint">Jun 2025 – May 2026 ≈ 50.3 weeks. Adjust if period differs.</p>
+        <input type="number" id="q-weeks" value="50.3" step="0.1" min="1" max="52" />
+      </div>
+      <hr class="divider" />
+      <div class="field">
+        <label>Holiday hours to value</label>
+        <p class="hint">8 hrs per day (Greg's method). 1 day = 8, 3 days = 24, 1 week = 40.</p>
+        <input type="number" id="q-holhours" value="8" step="0.5" />
+      </div>
+    </div>
+    <button class="calc-btn" onclick="calcQuick()">Calculate →</button>
+  </div>
+
+  <div class="panel" id="panel-log">
+    <p class="hint" style="margin-bottom:0.9rem; font-size:0.68rem; color:var(--muted);">Pre-loaded from your payslips. Add rows as new payslips arrive. Holiday pay received is excluded.</p>
+
+    <div class="log-wrap">
+      <div class="log-head">
+        <span>Period</span>
+        <span>Hours worked</span>
+        <span>Wages £</span>
+        <span>Bonus/Comm £</span>
+        <span></span>
+      </div>
+      <div id="log-body"></div>
+    </div>
+    <button class="add-row-btn" onclick="addLogRow()">+ add payslip row</button>
+
+    <div class="field" style="margin-top:1.2rem; max-width:220px;">
+      <label>Holiday hours to value</label>
+      <input type="number" id="l-holhours" value="8" step="0.5" />
+    </div>
+    <button class="calc-btn" onclick="calcLog()">Calculate from log →</button>
+  </div>
+
+  <div id="results">
+    <div class="result-card">
+      <p class="res-eyebrow" id="res-method">Output — 52-week average method</p>
+      <div class="res-main">
+        <p class="res-label">Holiday pay due</p>
+        <p class="res-big" id="out-total">—</p>
+        <p class="res-sub" id="out-sub"></p>
+      </div>
+      <div class="res-stats">
+        <div class="stat">
+          <p class="stat-label">Eff. hourly rate</p>
+          <p class="stat-val" id="out-hourly">—</p>
+        </div>
+        <div class="stat">
+          <p class="stat-label">Weekly avg</p>
+          <p class="stat-val" id="out-weekly">—</p>
+        </div>
+        <div class="stat">
+          <p class="stat-label">Daily rate (÷5)</p>
+          <p class="stat-val" id="out-daily">—</p>
+        </div>
+      </div>
+      <p class="workings" id="out-workings"></p>
+      <div class="warn-box" id="out-warn" style="display:none"></div>
+    </div>
+  </div>
+
+  <footer>
+    Pre-loaded: Jun 2025–May 2026 payslips. Earnings = wages + bonus + commission; holiday pay received excluded. Clause 6.2: 52-week average of all sums earned. Methodology confirmed Greg Johnson, PennyBooks, June 2026. Estimator only — payroll figures may differ. ⚠ May 2026 salary component included but DA hours not separately stated on that slip; effective rate for that month will be higher than the FOH rate.
+  </footer>
+
+</div>
+
+<script>
+  const PAYSLIPS = [
+    { label: "Jun 2025",  hours: 170.48, wages: 2591.30, extra: 0 },
+    { label: "Jul 2025",  hours: 151.50, wages: 2302.80, extra: 0 },
+    { label: "Aug 2025",  hours: 159.50, wages: 2424.40, extra: 0 },
+    { label: "Sep 25 (1)",hours: 127.75, wages: 1794.89, extra: 0 },
+    { label: "Sep 25 (2)",hours: 13.75,  wages: 193.19,  extra: 0 },
+    { label: "Oct 2025",  hours: 165.00, wages: 2318.25, extra: 125.00 },
+    { label: "Nov 2025",  hours: 116.50, wages: 1636.82, extra: 50.00 },
+    { label: "Dec 2025",  hours: 129.50, wages: 1819.47, extra: 100.00 },
+    { label: "Jan 2026",  hours: 162.25, wages: 2279.61, extra: 25.00 },
+    { label: "Feb 2026",  hours: 50.00,  wages: 702.50,  extra: 120.00 },
+    { label: "Mar 2026",  hours: 136.75, wages: 1921.34, extra: 30.00 },
+    { label: "Apr 2026",  hours: 173.00, wages: 2430.65, extra: 30.00 },
+    { label: "May 2026",  hours: 85.45,  wages: 2533.90, extra: 105.00 },
+  ];
+
+  let rowCount = 0;
+
+  function switchTab(t) {
+    document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('active', ['quick','log'][i] === t));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + t).classList.add('active');
+    document.getElementById('results').style.display = 'none';
+    if (t === 'log' && document.getElementById('log-body').children.length === 0) populateLog();
+  }
+
+  function populateLog() {
+    PAYSLIPS.forEach(p => addLogRow(p.label, p.hours, p.wages, p.extra));
+  }
+
+  function addLogRow(label='', hours='', wages='', extra='') {
+    rowCount++;
+    const body = document.getElementById('log-body');
+    const id = 'lr-' + rowCount;
+    const div = document.createElement('div');
+    div.className = 'log-row'; div.id = id;
+    div.innerHTML = `
+      <input type="text" style="background:var(--cream);border:1px solid var(--rule);border-radius:2px;padding:0.28rem 0.4rem;font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--ink);width:100%;" value="${label}" placeholder="e.g. Jun 2025" />
+      <input type="number" class="inp-h" placeholder="0.00" value="${hours}" step="0.25" />
+      <input type="number" class="inp-w" placeholder="0.00" value="${wages}" step="0.01" />
+      <input type="number" class="inp-x" placeholder="0.00" value="${extra}" step="0.01" />
+      <button class="del-btn" onclick="document.getElementById('${id}').remove()">×</button>
+    `;
+    body.appendChild(div);
+  }
+
+  function fmt(n) { return '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  function showResults(totalHours, totalEarn, weeks, holHours, method) {
+    const effRate   = totalEarn / totalHours;
+    const weeklyAvg = totalEarn / weeks;
+    const dailyRate = weeklyAvg / 5;
+    const holPay    = effRate * holHours;
+
+    document.getElementById('res-method').textContent   = `Output — ${method}`;
+    document.getElementById('out-total').textContent    = fmt(holPay);
+    document.getElementById('out-sub').textContent      = `${holHours} hrs × ${fmt(effRate)}/hr`;
+    document.getElementById('out-hourly').textContent   = fmt(effRate) + '/hr';
+    document.getElementById('out-weekly').textContent   = fmt(weeklyAvg);
+    document.getElementById('out-daily').textContent    = fmt(dailyRate);
+    document.getElementById('out-workings').textContent =
+      `${fmt(totalEarn)} ÷ ${totalHours.toFixed(2)} hrs = ${fmt(effRate)}/hr  ·  ${fmt(totalEarn)} ÷ ${weeks} wks = ${fmt(weeklyAvg)}/wk  ·  weekly ÷ 5 = ${fmt(dailyRate)}/day`;
+
+    const warnEl = document.getElementById('out-warn');
+    if (weeks < 52) {
+      warnEl.style.display = 'block';
+      warnEl.innerHTML = `<strong>Note:</strong> only ${weeks} paid weeks in the reference period (full 52 not yet reached). The average will rise as more weeks accumulate. May 2026 salary component included but DA contracted hours not stated on that payslip — effective rate slightly elevated for that month.`;
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    const el = document.getElementById('results');
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function calcQuick() {
+    const hours   = parseFloat(document.getElementById('q-hours').value);
+    const earn    = parseFloat(document.getElementById('q-earnings').value);
+    const weeks   = parseFloat(document.getElementById('q-weeks').value) || 50.3;
+    const holHrs  = parseFloat(document.getElementById('q-holhours').value);
+    if (!hours || !earn || !holHrs) { alert('Fill in all fields.'); return; }
+    showResults(hours, earn, weeks, holHrs, '52-week average · quick calc');
+  }
+
+  function calcLog() {
+    const rows = document.querySelectorAll('#log-body .log-row');
+    let totalH = 0, totalE = 0;
+    rows.forEach(row => {
+      const h = parseFloat(row.querySelector('.inp-h').value) || 0;
+      const w = parseFloat(row.querySelector('.inp-w').value) || 0;
+      const x = parseFloat(row.querySelector('.inp-x').value) || 0;
+      totalH += h; totalE += (w + x);
+    });
+    const holHrs = parseFloat(document.getElementById('l-holhours').value);
+    if (!totalH || !totalE || !holHrs) { alert('No data in log.'); return; }
+    const approxWeeks = Math.min(rows.length * 4.33, 52);
+    showResults(totalH, totalE, approxWeeks, holHrs, '52-week average · payslip log');
+  }
+</script>
+</body>
+</html>
