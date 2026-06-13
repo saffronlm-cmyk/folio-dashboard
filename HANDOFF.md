@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-06-12. Read this first when picking the project back up._
+_Last updated: 2026-06-13. Read this first when picking the project back up._
 
 ---
 
@@ -8,13 +8,17 @@ _Last updated: 2026-06-12. Read this first when picking the project back up._
 
 A working, single-file personal finance dashboard (`index.html`) that reads transactions live from the **Emma** Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator.
 
-**Done and verified:** Overview, Categories (spend + income), **Wealth** (merged Savings + Investments, 3-level drill-down; investments manual/Phase 1), Income estimator, Google Sheets connection, period filtering, mobile layout, mock fallback, localStorage persistence.
+**Done and verified:** Overview, Categories (spend + income), **Wealth** (merged Savings + Investments, 3-level drill-down), **live investment prices** (Yahoo via a Cloudflare Worker), Income estimator, Google Sheets connection, period filtering, mobile layout, mock fallback, localStorage persistence.
 
-**Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`. OAuth origin `https://saffronlm-cmyk.github.io` must be added to the client's Authorized JavaScript origins (Google Cloud Console) for sign-in to work there.
+**Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`.
 
-**Next builds (designs in §8):** (1) Supabase backend, (2) Budget estimator tab, (3) Investments **Phase 2** (live prices).
+**Status of earlier manual actions (as of 2026-06-13):**
+- **OAuth origin** — Saffron believes it's added; **confirm** by tapping Connect Google Sheets on the hosted site (loads Emma data = done; an origin/redirect error = still needs `https://saffronlm-cmyk.github.io` added in Google Cloud Console, see §9).
+- **Yahoo symbols verified** ✅ and **real units + avg cost entered** ✅ — but **on Saffron's phone only**. localStorage is per-device/per-browser, so that data does **not** exist on her laptop/other browsers. Closing this gap is the main reason to prioritise Supabase.
 
-> The canonical file is now `emma-dashboard/index.html`. The previous working copy at `../folio/Emma_Dashboard.html` is **legacy** — don't edit it.
+**Next builds (designs in §8):** (1) **Supabase backend (§8a)** — now higher priority: cross-device sync (her phone-entered holdings → laptop) + real T212/Binance positions via API. (2) Budget estimator tab (§8b).
+
+> Canonical file: **`index.html`** at the repo root (single file, no build step).
 
 ---
 
@@ -128,14 +132,16 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 9. Resume steps (next session)
 
-1. **OAuth (console step, do once):** Google Cloud Console → APIs & Services → Credentials → OAuth client `185610168060-…` → **Authorized JavaScript origins** → add `https://saffronlm-cmyk.github.io` (keep `http://localhost:9000`). If "Access blocked", add `saffronlm@gmail.com` under OAuth consent screen → Test users.
-2. Open the hosted site, Connect Google Sheets, verify live Emma data loads. Note: hosted origin has its own localStorage, so accounts/holdings/targets start from the seeded defaults there.
-3. Build **8b (Budget tab)** — highest-value remaining feature; reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast.
-4. Investments **Phase 2** (live prices) when ready — see §8c.
+**Loose ends (see §1):** confirm OAuth works (Connect on the hosted site); if it errors on origin, add `https://saffronlm-cmyk.github.io` in Google Cloud Console → Credentials → OAuth client `185610168060-…` → Authorized JavaScript origins (keep `http://localhost:9000`; add `saffronlm@gmail.com` as a Test user if "Access blocked"). Symbols + real units are already entered, but **only on Saffron's phone** (per-device localStorage).
+
+**Next build — recommended order:**
+1. **Supabase backend (§8a)** — bumped to first: swap the `Store` adapter for cross-device sync so her phone-entered holdings/units show on the laptop too, and so real T212/Binance **positions** can be pulled via API (keys live in a server-side edge function — never in `index.html`). Tables: `accounts`, `holdings`, `budget_targets`, `income_inputs`, `monthly_targets`. Keep the localStorage adapter as offline fallback.
+2. **Budget estimator tab (§8b)** — reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast. Slots into the existing tab/period model; keep the mock fallback working.
 
 ---
 
-## 10. Related (not in this repo)
-- `../folio/emma_to_folio_sync.gs` — Apps Script syncing Emma → the old Folio spreadsheet (separate system).
-- `../folio/Folio_Dashboard.html` — the older Folio-spreadsheet dashboard; source of the live-price code for §8c.
+## 10. Related
+- `cloudflare-worker/yfin-proxy.js` — **in this repo.** The deployed Yahoo price proxy (`https://yfin.saffronlm.workers.dev`); redeploy from here if the Worker is ever lost. Referenced by `CONFIG.PRICE_PROXY`.
+- `../folio/emma_to_folio_sync.gs` — Apps Script syncing Emma → the old Folio spreadsheet (separate system, not in this repo).
+- `../folio/Folio_Dashboard.html` — the older Folio dashboard (not in this repo). Was meant to be the live-price source for §8c but never got added, so Phase 2 was written fresh.
 - Full design history: `~/.claude/plans/how-far-am-i-deep-goblet.md`.
