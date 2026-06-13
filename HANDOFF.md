@@ -8,7 +8,7 @@ _Last updated: 2026-06-12. Read this first when picking the project back up._
 
 A working, single-file personal finance dashboard (`index.html`) that reads transactions live from the **Emma** Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator.
 
-**Done and verified:** Overview, Categories (spend + income), Savings, Income estimator, **Investments (Phase 1, manual)**, Google Sheets connection, period filtering, mock fallback, localStorage persistence.
+**Done and verified:** Overview, Categories (spend + income), **Wealth** (merged Savings + Investments, 3-level drill-down; investments manual/Phase 1), Income estimator, Google Sheets connection, period filtering, mobile layout, mock fallback, localStorage persistence.
 
 **Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`. OAuth origin `https://saffronlm-cmyk.github.io` must be added to the client's Authorized JavaScript origins (Google Cloud Console) for sign-in to work there.
 
@@ -63,11 +63,14 @@ Connect Google → SheetsAPI.fetchData()
 
 **Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (6-period history + average line + transactions), recurring-payment detection, and an "Excluded this period" line.
 
-**Savings** — manual accounts (add/edit/delete, Store-persisted), type badges incl. **SmartPension** & **Binance/crypto**, net-worth total + MoM change, and a **net-worth breakdown donut** coloured by type.
-
 **Income estimator** — FOH (**hours/month** × rate), DA (**shifts × editable day rate**), pooled PAYE tax, **pension net-pay model**, grand total (net + cash), **monthly "save as target"**, and the **Holiday Pay estimator** (quick calc + editable payslip log, 13 payslips pre-loaded).
 
-**Investments (Phase 1, manual)** — two-level drill-down. **Level 1 (portfolio):** 3 KPIs (total value · gain/loss £+% · cost basis), allocation donut by account (`makeDonut`), clickable account cards. **Level 2 (account, drill-in with back link):** scoped KPIs + a **Trading-212-style treemap** (`chartjs-chart-treemap` plugin — tiles sized by £ value, ticker + % inside, green/red by P/L) + holdings table with add/edit/delete. Holdings live in `HOLDINGS` (Store key `holdings`, keyed by account name; seeded defaults double as the demo state like `ACCOUNTS`). Investment-account net-worth value is now **derived** (`accountValue()` = Σ units×price) and feeds the Savings net-worth donut. `INV_VIEW = {level, account}` drives the drill-down; rendered lazily on tab switch (treemap needs a visible, sized container).
+**Wealth** (merged Savings + Investments) — single tab, **3-level drill-down** driven by `WEALTH_VIEW = {level, group, account}`:
+- **Level 0 (landing):** total net worth + **three donuts** — whole net worth by *type* (`renderTypeDonut`), Savings accounts, Investment accounts (`renderGroupDonut`, coloured by `PALETTE`) — then two clickable **type cards** (Savings / Investments).
+- **Level 1 (type → accounts):** that group's accounts with add/edit/delete + group KPIs. Investment (holdings) cards drill in; savings/pension cards edit/delete inline.
+- **Level 2 (investment account → holdings):** scoped KPIs + **Trading-212-style treemap** (`chartjs-chart-treemap`, tiles by £ value, ticker + %, green/red P/L) + holdings table; Edit/Delete-account buttons in the header.
+
+**Grouping** (`GROUP`): Savings = Cash ISA + Savings/HYSA · Investments = S&S ISA + GIA + Crypto + Pension. **Holdings-type** accounts (`HOLDINGS_TYPES` = investment/gia/crypto) get their value from holdings (`accountValue()` = Σ units×price, balance fields hidden in the modal); Pension stays a manual balance. Holdings persist in `HOLDINGS` (Store key `holdings`, keyed by account name; seeded defaults double as demo state). Donuts/treemap render lazily on tab switch (need a sized container).
 
 ---
 
