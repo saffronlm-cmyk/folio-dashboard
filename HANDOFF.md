@@ -12,12 +12,11 @@ A working, single-file personal finance dashboard (`index.html`) that reads tran
 
 **Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`.
 
-**Outstanding manual actions (Saffron, on the live site):**
-- **OAuth origin** — add `https://saffronlm-cmyk.github.io` to the OAuth client's Authorized JavaScript origins (Google Cloud Console) or Google sign-in fails on the hosted site. (Details in §9.)
-- **Verify Yahoo symbols resolve** — on Wealth → Investments, use the holding modal's **Test symbol** button; the least-certain one is `WLDS.L`. Report any ✗.
-- **Enter real units + avg cost (GBP)** per holding (seed ships placeholder units).
+**Status of earlier manual actions (as of 2026-06-13):**
+- **OAuth origin** — Saffron believes it's added; **confirm** by tapping Connect Google Sheets on the hosted site (loads Emma data = done; an origin/redirect error = still needs `https://saffronlm-cmyk.github.io` added in Google Cloud Console, see §9).
+- **Yahoo symbols verified** ✅ and **real units + avg cost entered** ✅ — but **on Saffron's phone only**. localStorage is per-device/per-browser, so that data does **not** exist on her laptop/other browsers. Closing this gap is the main reason to prioritise Supabase.
 
-**Next builds (designs in §8):** (1) Budget estimator tab (§8b), (2) Supabase backend (§8a) — cross-device sync + real T212/Binance positions via API.
+**Next builds (designs in §8):** (1) **Supabase backend (§8a)** — now higher priority: cross-device sync (her phone-entered holdings → laptop) + real T212/Binance positions via API. (2) Budget estimator tab (§8b).
 
 > Canonical file: **`index.html`** at the repo root (single file, no build step).
 
@@ -133,13 +132,11 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 9. Resume steps (next session)
 
-**First, the outstanding manual actions (see §1):**
-1. **OAuth (console, do once):** Google Cloud Console → APIs & Services → Credentials → OAuth client `185610168060-…` → **Authorized JavaScript origins** → add `https://saffronlm-cmyk.github.io` (keep `http://localhost:9000`). If "Access blocked", add `saffronlm@gmail.com` under OAuth consent screen → Test users. Then Connect Google Sheets on the hosted site and confirm live Emma data loads.
-2. **Verify live prices** on the hosted site: Wealth → Investments → Trading 212 should populate prices; use **Test symbol** to confirm each (esp. `WLDS.L`). Enter real units + avg cost (GBP). Note: hosted origin has its own localStorage — if it shows old demo holdings instead of the Trading 212 + Binance seed, edit them or clear that origin's storage to reseed (a one-time migration could be added instead).
+**Loose ends (see §1):** confirm OAuth works (Connect on the hosted site); if it errors on origin, add `https://saffronlm-cmyk.github.io` in Google Cloud Console → Credentials → OAuth client `185610168060-…` → Authorized JavaScript origins (keep `http://localhost:9000`; add `saffronlm@gmail.com` as a Test user if "Access blocked"). Symbols + real units are already entered, but **only on Saffron's phone** (per-device localStorage).
 
-**Then the next build — pick one:**
-3. **Budget estimator tab (§8b)** — highest-value remaining feature; reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast. Slots into the existing tab/period model; keep the mock fallback working.
-4. **Supabase backend (§8a)** — swap the `Store` adapter for cross-device sync; also unlocks real Trading 212 / Binance **positions** via API (keys live server-side in an edge function — never in `index.html`).
+**Next build — recommended order:**
+1. **Supabase backend (§8a)** — bumped to first: swap the `Store` adapter for cross-device sync so her phone-entered holdings/units show on the laptop too, and so real T212/Binance **positions** can be pulled via API (keys live in a server-side edge function — never in `index.html`). Tables: `accounts`, `holdings`, `budget_targets`, `income_inputs`, `monthly_targets`. Keep the localStorage adapter as offline fallback.
+2. **Budget estimator tab (§8b)** — reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast. Slots into the existing tab/period model; keep the mock fallback working.
 
 ---
 
