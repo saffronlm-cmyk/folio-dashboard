@@ -114,14 +114,15 @@ Connect Google → SheetsAPI.fetchData()
 - **Override** per category (typed target), persisted via `Store` (`budgetTargets`); no override → use auto-estimate.
 - **Surface it:** progress bars (spent vs budget) per category, total budget vs total spend, and a **run-rate forecast** (projected end-of-period spend at current pace). Add over/under-budget flags to the category cards.
 
-### 8c. Investments portfolio tab
-- **Model:** `account → holdings[] {ticker, name, units, avgCost, lastPrice, currency}` (Store-persisted). Account value = Σ(units × price) → feeds the net-worth donut.
-- **Phase 1 (manual): ✅ DONE** — see §4. Investment accounts are `ACCOUNTS` of type `investment`/`gia`/`crypto`; holdings keyed by account name in `HOLDINGS`. Treemap via `chartjs-chart-treemap@3.1.0` (CDN).
-- **Phase 2 (live prices) — TODO:** the Folio dashboard with the Yahoo price pattern (GBX→GBP + 5-min cache) was **not** present in this repo when Phase 1 was built (`../folio/Folio_Dashboard.html` missing). Either add it or write the fetcher fresh. Trading 212/Binance need API keys → defer to the Supabase backend (don't put keys in client code). Smart Pension stays manual. Wire live prices into `holding.lastPrice` then re-render; `accountValue()` already flows it through to net worth.
-  - ETFs/stocks (ISA, GIA) → **Yahoo Finance** via CORS proxy. **The exact pattern (incl. GBX→GBP + 5-min cache) already exists in `../folio/Folio_Dashboard.html`** — lift it from there.
-  - **Trading 212** → official API with an API key; can pull actual positions, not just prices.
-  - **Binance** → API or manual.
-  - **Smart Pension** → no public API; stays manual.
+### 8c. Investments — now part of the Wealth tab (§4)
+- **Model:** `HOLDINGS[account] = [{ticker, name, symbol, priceMode, units, avgCost, lastPrice, currency}]`. `lastPrice` is always **GBP**; `accountValue()` = Σ(units × lastPrice) → net worth.
+- **Phase 1 (manual): ✅ DONE.** Holdings-type accounts = `investment`/`gia`/`crypto`. Treemap via `chartjs-chart-treemap@3.1.0` (CDN).
+- **Phase 2 (live prices): ✅ DONE.** Written fresh (the Folio reference file was never added).
+  - **Proxy:** `cloudflare-worker/yfin-proxy.js` deployed at `https://yfin.saffronlm.workers.dev/?s=` (in `CONFIG.PRICE_PROXY`). Browsers can't call Yahoo directly (CORS); the Worker fetches server-side with a UA and returns JSON+CORS. Yahoo-only allowlist.
+  - **`Prices` module:** fetches `v8/finance/chart` per symbol, parses `meta.regularMarketPrice`/`chartPreviousClose`/`currency`. **GBp→/100**, **USD/EUR→GBP** via `GBPUSD=X`/`GBPEUR=X`. Writes GBP price + `dayPct` onto each live holding. **5-min cache** in `Store('priceCache')`. Refreshes on Wealth-tab open (if stale) + manual ⟳ button.
+  - **UI:** holding modal has **Yahoo symbol + Live/Manual + Test** button; price bar shows portfolio Today% + "as of HH:MM" + Refresh; per-holding day-change and live/stale/manual dot.
+  - **Seed:** Trading 212 (VUAG.L/SEMI.L/VHVE.L/WLDS.L/EIMI.L) + Binance (BTC/SOL/ADA/ETH(BETH)/XRP/DOGE `-GBP`), placeholder units — Saffron enters real units/avg-cost (GBP) in-app (never committed).
+  - **Still manual:** Trading 212 / Binance **positions** (need API keys → Supabase backend later); crypto **prices** track via Yahoo `-GBP`. Smart Pension fully manual.
 
 ---
 
