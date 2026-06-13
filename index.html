@@ -553,6 +553,15 @@
         .wealth-donuts .donut-wrap { margin-top: 12px; }
         .wealth-donuts .legend { margin-top: 14px; }
         .modal-hint { font-size: 11px; color: var(--muted); margin-top: -6px; margin-bottom: 2px; line-height: 1.5; }
+        .price-bar { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; flex-wrap: wrap; font-size: 12px; }
+        .price-bar:empty { display: none; }
+        .price-bar .chip { padding: 5px 12px; }
+        .pb-day { font-weight: 700; }
+        .pb-when { color: var(--muted); }
+        .hstat { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 6px; vertical-align: middle; }
+        .hstat.fresh { background: var(--positive); }
+        .hstat.stale { background: #D69E5A; }
+        .hstat.manual { background: var(--muted); }
 
         /* ─── MODAL ───────────────────────────────── */
         .overlay {
@@ -1074,7 +1083,8 @@
     <div id="wealth-type" style="display:none">
         <div class="back-link" onclick="wealthBack('landing')" style="margin-top:20px">← Back to net worth</div>
         <div class="chart-title" id="wt-title" style="font-size:20px;margin-bottom:14px">—</div>
-        <div class="cat-kpi-grid" id="wt-kpis" style="margin-bottom:18px"></div>
+        <div class="cat-kpi-grid" id="wt-kpis" style="margin-bottom:14px"></div>
+        <div class="price-bar" id="pb-type"></div>
         <div id="wt-acc-list" style="display:flex;flex-direction:column;gap:9px"></div>
         <button class="add-acc-btn" onclick="openModalForGroup()">+ Add account</button>
     </div>
@@ -1089,7 +1099,8 @@
                 <button class="log-del" id="wa-del" title="Delete account">×</button>
             </div>
         </div>
-        <div class="cat-kpi-grid" id="inv-acc-kpis" style="margin-bottom:18px"></div>
+        <div class="cat-kpi-grid" id="inv-acc-kpis" style="margin-bottom:14px"></div>
+        <div class="price-bar" id="pb-acct"></div>
         <div class="chart-card" style="margin-bottom:18px">
             <div class="chart-title">Holdings map</div>
             <div class="inv-tree-wrap"><canvas id="invTreemap"></canvas></div>
@@ -1332,17 +1343,34 @@
         </div>
         <div class="fr">
             <div class="fg">
+                <label class="fl">Yahoo symbol</label>
+                <input class="fi" type="text" id="h-symbol" placeholder="e.g. VUAG.L">
+            </div>
+            <div class="fg">
+                <label class="fl">Price</label>
+                <select class="fs" id="h-pricemode" onchange="onPriceModeChange()">
+                    <option value="live">Live (Yahoo)</option>
+                    <option value="manual">Manual</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;margin:-2px 0 4px">
+            <button class="btn-g" type="button" id="h-test" style="padding:6px 12px" onclick="testSymbol()">Test symbol</button>
+            <span id="h-test-result" class="modal-hint" style="margin:0"></span>
+        </div>
+        <div class="fr">
+            <div class="fg">
                 <label class="fl">Units</label>
                 <input class="fi" type="number" id="h-units" placeholder="0" step="any">
             </div>
             <div class="fg">
-                <label class="fl">Avg cost</label>
+                <label class="fl">Avg cost (£)</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
                     <input class="fi" type="number" id="h-avgcost" placeholder="0.00" step="any">
                 </div>
             </div>
             <div class="fg">
-                <label class="fl">Last price</label>
+                <label class="fl">Last price (£)</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
                     <input class="fi" type="number" id="h-price" placeholder="0.00" step="any">
                 </div>
@@ -1368,6 +1396,9 @@ const CONFIG = {
     SPREADSHEET_ID: '1qfrUT7DuC7nMeHT6ZZANR83CfJrVLpFNVbEYzBLbF98',
     SHEET_TAB: 'Primary',
     SCOPES: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+    // Cloudflare Worker proxy for live Yahoo prices (see cloudflare-worker/yfin-proxy.js).
+    // Empty string → live prices off, holdings stay manual.
+    PRICE_PROXY: 'https://yfin.saffronlm.workers.dev/?s=',
 };
 
 /* ════════════════════════════════════════════════════
@@ -1490,21 +1521,32 @@ const PAYSLIPS = [
 
 /* App-owned data (persisted via Store) */
 let ACCOUNTS = Store.get('accounts', [
+    { name:'Trading 212',    type:'investment', inst:'Trading 212', bal:0,    prev:0,    updated:'' },
+    { name:'Binance',        type:'crypto',     inst:'Binance',     bal:0,    prev:0,    updated:'' },
     { name:'Cash ISA',       type:'isa',        inst:'Monzo',       bal:3200, prev:3100, updated:'' },
-    { name:'S&S ISA',        type:'investment', inst:'Trading 212', bal:2800, prev:2650, updated:'' },
     { name:'Emergency Fund', type:'savings',    inst:'Monzo',       bal:2450, prev:2450, updated:'' },
 ]);
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
 
 /* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
-   Seeded defaults double as the populated demo state — like ACCOUNTS,
-   the defaults are treated as real data and persist on first edit. */
+   Seeded with Saffron's real symbols (live-wired) but PLACEHOLDER units/cost —
+   enter real amounts in-app (never committed). avgCost is in GBP; live price is
+   fetched in its native currency (symbol) and converted to GBP on the fly. */
 let HOLDINGS = Store.get('holdings', {
-    'S&S ISA': [
-        { ticker:'VWRP', name:'Vanguard FTSE All-World', units:18, avgCost:95.20,  lastPrice:102.50, currency:'GBP' },
-        { ticker:'AAPL', name:'Apple Inc.',              units:3,  avgCost:180.00, lastPrice:195.30, currency:'GBP' },
-        { ticker:'NVDA', name:'NVIDIA Corp.',            units:2,  avgCost:110.00, lastPrice:125.40, currency:'GBP' },
-        { ticker:'TSLA', name:'Tesla Inc.',              units:1,  avgCost:240.00, lastPrice:178.20, currency:'GBP' },
+    'Trading 212': [
+        { ticker:'VUAG', name:'Vanguard S&P 500 (Acc)',        symbol:'VUAG.L', priceMode:'live', currency:'GBp', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'SEMI', name:'iShares Global Semiconductors',  symbol:'SEMI.L', priceMode:'live', currency:'GBp', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'VHVE', name:'Vanguard FTSE Dev World',        symbol:'VHVE.L', priceMode:'live', currency:'USD', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'WLDS', name:'iShares MSCI World Small Cap',   symbol:'WLDS.L', priceMode:'live', currency:'GBp', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'EIMI', name:'iShares Core MSCI EM IMI',       symbol:'EIMI.L', priceMode:'live', currency:'USD', units:0, avgCost:0, lastPrice:0 },
+    ],
+    'Binance': [
+        { ticker:'BTC',  name:'Bitcoin',            symbol:'BTC-GBP',  priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'SOL',  name:'Solana',             symbol:'SOL-GBP',  priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'ADA',  name:'Cardano',            symbol:'ADA-GBP',  priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'BETH', name:'Binance ETH (≈ ETH)', symbol:'ETH-GBP', priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'XRP',  name:'XRP',                symbol:'XRP-GBP',  priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
+        { ticker:'DOGE', name:'Dogecoin',           symbol:'DOGE-GBP', priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
     ],
 });
 
@@ -2187,7 +2229,7 @@ function switchTab(name, el) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     el.classList.add('active');
-    if (name === 'wealth') renderWealth();  // render once container is visible (donuts/treemap need size)
+    if (name === 'wealth') { renderWealth(); Prices.refresh(false); }  // render + pull live prices if stale
 }
 function setToggle(mode, el) {
     document.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
@@ -2392,6 +2434,7 @@ function renderWealthType(group) {
             kpiCard('Accounts', String(accs.length)) +
             kpiCard('Share of net worth', (nwt ? Math.round(tot / nwt * 100) : 0) + '%');
     }
+    document.getElementById('pb-type').innerHTML = isInv ? Prices.barHTML(accs.flatMap(a => holdingsFor(a.name))) : '';
     document.getElementById('wt-acc-list').innerHTML = accs.map(a => {
         const idx = ACCOUNTS.indexOf(a);
         const val = accountValue(a);
@@ -2442,16 +2485,24 @@ function renderWealthAccount(name) {
         kpiCard('Gain / loss', `${plTxt(gain)} · ${gainPct >= 0 ? '+' : '−'}${Math.abs(gainPct).toFixed(1)}%`, plClass(gain)) +
         kpiCard('Cost basis', '£' + Math.round(cost).toLocaleString());
 
+    document.getElementById('pb-acct').innerHTML = Prices.barHTML(hs);
     renderTreemap(hs, val);
 
     document.getElementById('inv-holdings-list').innerHTML = hs.map((h, i) => {
         const hv = holdingValue(h), hc = holdingCost(h), g = hv - hc;
         const gp = hc ? g / hc * 100 : 0;
         const pct = val ? Math.round(hv / val * 100) : 0;
+        const st = Prices.status(h);
+        const dot = `<span class="hstat ${st}" title="${st === 'fresh' ? 'live' : st}"></span>`;
+        const price = `£${(+h.lastPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+        const native = (h.priceMode === 'live' && h.nativePrice != null && h.nativeCurrency && h.nativeCurrency !== 'GBP')
+            ? ` (${(+h.nativePrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${h.nativeCurrency})` : '';
+        const day = (h.priceMode === 'live' && h.dayPct != null)
+            ? ` · <span class="${h.dayPct >= 0 ? 'pl-pos' : 'pl-neg'}">${h.dayPct >= 0 ? '+' : '−'}${Math.abs(h.dayPct).toFixed(2)}% today</span>` : '';
         return `<div class="acc-card">
             <div class="acc-info">
-                <div class="acc-name">${h.ticker || '—'} <span class="acc-inst" style="margin:0">${pct}%</span></div>
-                <div class="hold-sub">${h.name || ''} · ${(+h.units || 0)} @ £${(+h.avgCost || 0).toLocaleString()} → £${(+h.lastPrice || 0).toLocaleString()}</div>
+                <div class="acc-name">${h.ticker || '—'} <span class="acc-inst" style="margin:0">${pct}%</span>${dot}</div>
+                <div class="hold-sub">${(+h.units || 0)} @ £${(+h.avgCost || 0).toLocaleString()} → ${price}${native}${day}</div>
             </div>
             <div style="text-align:right">
                 <div class="acc-bal">£${Math.round(hv).toLocaleString()}</div>
@@ -2502,18 +2553,21 @@ let _holdIdx = -1;
 function openHoldingModal(idx = -1) {
     _holdIdx = (typeof idx === 'number' && idx >= 0) ? idx : -1;
     const setV = (id, v) => document.getElementById(id).value = v;
+    document.getElementById('h-test-result').textContent = '';
     if (_holdIdx >= 0) {
         const h = holdingsFor(WEALTH_VIEW.account)[_holdIdx];
         setV('h-ticker', h.ticker || ''); setV('h-name', h.name || ''); setV('h-units', h.units);
         setV('h-avgcost', h.avgCost); setV('h-price', h.lastPrice); setV('h-currency', h.currency || 'GBP');
+        setV('h-symbol', h.symbol || h.ticker || ''); setV('h-pricemode', h.priceMode || 'manual');
         document.getElementById('h-modal-title').textContent = 'Edit Holding';
         document.getElementById('h-modal-save').textContent = 'Save Holding';
     } else {
-        ['h-ticker', 'h-name', 'h-units', 'h-avgcost', 'h-price'].forEach(id => setV(id, ''));
-        setV('h-currency', 'GBP');
+        ['h-ticker', 'h-name', 'h-units', 'h-avgcost', 'h-price', 'h-symbol'].forEach(id => setV(id, ''));
+        setV('h-currency', 'GBP'); setV('h-pricemode', 'live');
         document.getElementById('h-modal-title').textContent = 'Add Holding';
         document.getElementById('h-modal-save').textContent = 'Add Holding';
     }
+    onPriceModeChange();
     document.getElementById('holding-modal').classList.add('open');
 }
 function closeHoldingModal() { document.getElementById('holding-modal').classList.remove('open'); _holdIdx = -1; }
@@ -2523,6 +2577,8 @@ function saveHolding() {
     const h = {
         ticker,
         name:      document.getElementById('h-name').value.trim(),
+        symbol:    document.getElementById('h-symbol').value.trim() || ticker,
+        priceMode: document.getElementById('h-pricemode').value,
         units:     parseFloat(document.getElementById('h-units').value) || 0,
         avgCost:   parseFloat(document.getElementById('h-avgcost').value) || 0,
         lastPrice: parseFloat(document.getElementById('h-price').value) || 0,
@@ -2535,6 +2591,7 @@ function saveHolding() {
     Store.set('holdings', HOLDINGS);
     closeHoldingModal();
     renderWealth();   // re-renders the account view + keeps net worth in sync
+    if (h.priceMode === 'live') Prices.refresh(true);   // pull a price for the new/edited holding
 }
 function deleteHolding(idx) {
     const acct = WEALTH_VIEW.account;
@@ -2543,6 +2600,152 @@ function deleteHolding(idx) {
     HOLDINGS[acct].splice(idx, 1);
     Store.set('holdings', HOLDINGS);
     renderWealth();
+}
+
+/* ════════════════════════════════════════════════════
+   LIVE PRICES — Yahoo via the Cloudflare Worker proxy
+   ----------------------------------------------------
+   Each live holding carries a Yahoo `symbol`. We fetch the native price,
+   convert to GBP (GBp→/100, USD/EUR→ via GBPxxx=X FX), and write it onto
+   `lastPrice` (which the rest of the app already treats as GBP) plus
+   day-change for display. Cached in Store for 5 min.
+   ════════════════════════════════════════════════════ */
+let PRICE_CACHE = Store.get('priceCache', {});  // { [symbol]: {raw, currency, prevRaw, ts} }
+let PRICES_UPDATING = false;
+const FX_SYMBOLS = { USD:'GBPUSD=X', EUR:'GBPEUR=X' };
+const PRICE_TTL = 5 * 60 * 1000;
+
+const Prices = {
+    enabled() { return !!CONFIG.PRICE_PROXY; },
+
+    liveHoldings() {
+        const out = [];
+        for (const hs of Object.values(HOLDINGS)) for (const h of hs)
+            if (h.priceMode === 'live' && h.symbol) out.push(h);
+        return out;
+    },
+    neededSymbols() {
+        const syms = new Set(this.liveHoldings().map(h => h.symbol));
+        Object.values(FX_SYMBOLS).forEach(s => syms.add(s));  // always keep FX fresh
+        return [...syms];
+    },
+    fresh(symbol) { const c = PRICE_CACHE[symbol]; return c && (Date.now() - c.ts) < PRICE_TTL; },
+
+    async fetchSymbol(symbol) {
+        const resp = await fetch(CONFIG.PRICE_PROXY + encodeURIComponent(symbol));
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const m = data && data.chart && data.chart.result && data.chart.result[0] && data.chart.result[0].meta;
+        if (!m || m.regularMarketPrice == null) throw new Error('no price');
+        return { raw: m.regularMarketPrice, currency: m.currency || 'GBP',
+                 prevRaw: (m.chartPreviousClose != null ? m.chartPreviousClose
+                           : (m.previousClose != null ? m.previousClose : m.regularMarketPrice)),
+                 ts: Date.now() };
+    },
+
+    fxRate(currency) {
+        if (currency === 'GBP' || currency === 'GBp') return 1;
+        const c = PRICE_CACHE[FX_SYMBOLS[currency]];
+        return c ? c.raw : null;   // GBPxxx=X = units of xxx per GBP
+    },
+    toGBP(raw, currency) {
+        if (currency === 'GBp') return raw / 100;   // pence → pounds
+        if (currency === 'GBP') return raw;
+        const fx = this.fxRate(currency);
+        return fx ? raw / fx : null;
+    },
+
+    async refresh(force = false) {
+        if (!this.enabled() || PRICES_UPDATING) return;
+        PRICES_UPDATING = true;
+        ['pb-type', 'pb-acct'].forEach(id => { const el = document.getElementById(id); if (el && el.innerHTML) el.innerHTML = '<span class="pb-when">updating prices…</span>'; });
+        try {
+            const syms = this.neededSymbols().filter(s => force || !this.fresh(s));
+            await Promise.allSettled(syms.map(async s => {
+                try { PRICE_CACHE[s] = await this.fetchSymbol(s); }
+                catch (e) { console.warn('price fetch failed:', s, e.message); }
+            }));
+            Store.set('priceCache', PRICE_CACHE);
+            this.apply();
+        } finally {
+            PRICES_UPDATING = false;
+            renderWealth();
+        }
+    },
+
+    /* Write GBP price + day-change onto each live holding. */
+    apply() {
+        let changed = false;
+        for (const hs of Object.values(HOLDINGS)) for (const h of hs) {
+            if (h.priceMode !== 'live' || !h.symbol) continue;
+            const c = PRICE_CACHE[h.symbol];
+            if (!c) continue;
+            const gbp = this.toGBP(c.raw, c.currency);
+            if (gbp == null) continue;
+            h.lastPrice = gbp;
+            h.nativePrice = c.raw; h.nativeCurrency = c.currency;
+            h.dayPct = c.prevRaw ? (c.raw - c.prevRaw) / c.prevRaw * 100 : 0;
+            h.priceTs = c.ts;
+            changed = true;
+        }
+        if (changed) Store.set('holdings', HOLDINGS);
+    },
+
+    lastUpdated() {
+        let ts = 0;
+        for (const h of this.liveHoldings()) if (h.priceTs && h.priceTs > ts) ts = h.priceTs;
+        return ts;
+    },
+    status(h) {
+        if (h.priceMode !== 'live') return 'manual';
+        if (!h.priceTs) return 'stale';
+        return (Date.now() - h.priceTs) < PRICE_TTL * 2 ? 'fresh' : 'stale';
+    },
+    dayPctFor(hs) {
+        let v = 0, prev = 0;
+        for (const h of hs) {
+            if (h.priceMode !== 'live' || h.dayPct == null) continue;
+            const val = holdingValue(h);
+            if (!val) continue;
+            v += val; prev += val / (1 + h.dayPct / 100);
+        }
+        return prev ? (v - prev) / prev * 100 : 0;
+    },
+    barHTML(hs) {
+        if (!this.enabled()) return '<span class="pb-when">Live prices off — set the price proxy.</span>';
+        const ts = this.lastUpdated();
+        const when = ts ? new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '—';
+        const dp = this.dayPctFor(hs);
+        const dpTxt = `Today ${dp >= 0 ? '+' : '−'}${Math.abs(dp).toFixed(2)}%`;
+        return `<button class="chip" onclick="Prices.refresh(true)"${PRICES_UPDATING ? ' disabled' : ''}>⟳ Refresh</button>
+                <span class="pb-day ${dp >= 0 ? 'pl-pos' : 'pl-neg'}">${dpTxt}</span>
+                <span class="pb-when">${PRICES_UPDATING ? 'updating…' : 'as of ' + when}</span>`;
+    },
+};
+
+/* Holding modal: live/manual + symbol test */
+function onPriceModeChange() {
+    const live = document.getElementById('h-pricemode').value === 'live';
+    document.getElementById('h-symbol').disabled = !live;
+    document.getElementById('h-price').disabled  = live;   // auto-filled from Yahoo when live
+    document.getElementById('h-test').disabled   = !live;
+}
+async function testSymbol() {
+    const res = document.getElementById('h-test-result');
+    const sym = (document.getElementById('h-symbol').value.trim() || document.getElementById('h-ticker').value.trim());
+    if (!sym) { res.textContent = 'Enter a ticker/symbol first.'; return; }
+    if (!Prices.enabled()) { res.textContent = 'No price proxy configured.'; return; }
+    res.textContent = 'Testing…';
+    try {
+        const d = await Prices.fetchSymbol(sym);
+        if ((d.currency === 'USD' || d.currency === 'EUR') && !PRICE_CACHE[FX_SYMBOLS[d.currency]]) {
+            try { PRICE_CACHE[FX_SYMBOLS[d.currency]] = await Prices.fetchSymbol(FX_SYMBOLS[d.currency]); } catch (e) {}
+        }
+        const gbp = Prices.toGBP(d.raw, d.currency);
+        res.innerHTML = `<span class="pl-pos">✓ ${sym}: ${d.raw} ${d.currency}${gbp != null ? ` ≈ £${gbp.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}</span>`;
+    } catch (e) {
+        res.innerHTML = `<span class="pl-neg">✗ ${sym}: ${e.message}</span>`;
+    }
 }
 
 /* ── INCOME CALCULATOR ─────────────────────────────── */
