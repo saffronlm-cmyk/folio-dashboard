@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --bg:       #FAF7F5;
@@ -1399,6 +1399,10 @@ const CONFIG = {
     // Cloudflare Worker proxy for live Yahoo prices (see cloudflare-worker/yfin-proxy.js).
     // Empty string → live prices off, holdings stay manual.
     PRICE_PROXY: 'https://yfin.saffronlm.workers.dev/?s=',
+    // Supabase backend (cross-device sync + the single Google login). URL + key are
+    // public by design — same low-risk profile as CLIENT_ID/SPREADSHEET_ID above.
+    SUPABASE_URL: 'https://jsxcctrskkkxgdxfaduo.supabase.co',
+    SUPABASE_KEY: 'sb_publishable_P_YT241rOYj716f3Wgu4SA_bc2dpA_D',
 };
 
 /* ════════════════════════════════════════════════════
@@ -1413,17 +1417,131 @@ const CONFIG = {
    ════════════════════════════════════════════════════ */
 const Store = {
     PREFIX: 'emmaDash:',
+    // App-owned keys that sync cross-device via Supabase. Transient/device-local
+    // keys (priceCache, googleToken) are deliberately excluded.
+    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
             return raw == null ? fallback : JSON.parse(raw);
         } catch (e) { console.warn('Store.get failed', key, e); return fallback; }
     },
-    set(key, val) {
+    hasLocal(key) {
+        try { return localStorage.getItem(this.PREFIX + key) != null; } catch (e) { return false; }
+    },
+    // Local-only write — used during hydration so pulling remote rows doesn't echo
+    // straight back up to Supabase.
+    _writeLocal(key, val) {
         try { localStorage.setItem(this.PREFIX + key, JSON.stringify(val)); return true; }
-        catch (e) { console.warn('Store.set failed', key, e); return false; }
+        catch (e) { console.warn('Store write failed', key, e); return false; }
+    },
+    set(key, val) {
+        const ok = this._writeLocal(key, val);
+        // Write-through: when signed in, mirror app-owned keys to Supabase.
+        if (ok && this.SYNC_KEYS.includes(key) && typeof Sync !== 'undefined' && Sync.signedIn) {
+            Sync.push(key, val);
+        }
+        return ok;
     },
     remove(key) { try { localStorage.removeItem(this.PREFIX + key); } catch (e) {} },
+};
+
+/* ════════════════════════════════════════════════════
+   SYNC — Supabase backend (auth + cross-device KV sync)
+   ----------------------------------------------------
+   A single Google sign-in (Supabase OAuth) provides BOTH
+   the app identity (per-user data sync) AND the Google
+   access token used to read the Emma sheet. App-owned
+   Store keys mirror to public.user_data (RLS-scoped to
+   the signed-in user). Not signed in / offline → Store
+   stays local-only, so the mock/offline state is intact.
+   ════════════════════════════════════════════════════ */
+const Sync = {
+    client: null,
+    session: null,
+    hydrated: false,
+
+    get signedIn() { return !!(this.session && this.session.user); },
+
+    init() {
+        if (!window.supabase || !window.supabase.createClient) { setTimeout(() => this.init(), 200); return; }
+        this.client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
+            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+        });
+
+        // Reuse a still-valid Google token (survives reloads within ~1h) so live
+        // Sheets data reloads without re-tapping Connect.
+        const gt = Store.get('googleToken', null);
+        if (gt && gt.token && Date.now() < gt.exp) SheetsAPI.useToken(gt.token);
+
+        this.client.auth.onAuthStateChange((event, session) => {
+            this.session = session;
+            if (!session) return;
+            // A fresh OAuth callback carries the Google access token; persist it.
+            if (session.provider_token) {
+                Store.set('googleToken', { token: session.provider_token, exp: Date.now() + 55 * 60 * 1000 });
+                SheetsAPI.useToken(session.provider_token);
+            }
+            this.hydrateAndMigrate();
+        });
+
+        // Pick up any persisted session on load.
+        this.client.auth.getSession().then(({ data }) => {
+            if (data && data.session) { this.session = data.session; this.hydrateAndMigrate(); }
+        });
+    },
+
+    async signIn() {
+        if (!this.client) { alert('Sign-in is still loading — try again in a second.'); return; }
+        const redirectTo = window.location.href.split('#')[0];
+        const { error } = await this.client.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                scopes: CONFIG.SCOPES,
+                redirectTo,
+                queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
+            },
+        });
+        if (error) alert('Google sign-in failed:\n' + error.message);
+    },
+
+    async signOut() {
+        if (this.client) await this.client.auth.signOut();
+        Store.remove('googleToken');
+        location.reload();
+    },
+
+    /* Pull this user's rows. First sign-in (remote empty) seeds the server from
+       whatever this device holds; otherwise remote wins, and any local-only keys
+       are pushed up to fill gaps. */
+    async hydrateAndMigrate() {
+        if (this.hydrated || !this.signedIn) return;
+        this.hydrated = true;
+        try {
+            const { data, error } = await this.client.from('user_data').select('key,value');
+            if (error) throw error;
+            const remote = {};
+            (data || []).forEach(r => { remote[r.key] = r.value; });
+            const remoteKeys = Object.keys(remote);
+
+            if (remoteKeys.length === 0) {
+                Store.SYNC_KEYS.forEach(k => { if (Store.hasLocal(k)) this.push(k, Store.get(k)); });
+            } else {
+                remoteKeys.forEach(k => Store._writeLocal(k, remote[k]));
+                Store.SYNC_KEYS.forEach(k => { if (!(k in remote) && Store.hasLocal(k)) this.push(k, Store.get(k)); });
+            }
+            rehydrateFromStore();
+        } catch (e) {
+            console.warn('Supabase hydrate failed — staying on local data', e);
+        }
+    },
+
+    push(key, val) {
+        if (!this.signedIn) return;
+        this.client.from('user_data')
+            .upsert({ user_id: this.session.user.id, key, value: val }, { onConflict: 'user_id,key' })
+            .then(({ error }) => { if (error) console.warn('Sync.push failed', key, error); });
+    },
 };
 
 /* ════════════════════════════════════════════════════
@@ -1520,19 +1638,21 @@ const PAYSLIPS = [
 ];
 
 /* App-owned data (persisted via Store) */
-let ACCOUNTS = Store.get('accounts', [
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const DEFAULT_ACCOUNTS = [
     { name:'Trading 212',    type:'investment', inst:'Trading 212', bal:0,    prev:0,    updated:'' },
     { name:'Binance',        type:'crypto',     inst:'Binance',     bal:0,    prev:0,    updated:'' },
     { name:'Cash ISA',       type:'isa',        inst:'Monzo',       bal:3200, prev:3100, updated:'' },
     { name:'Emergency Fund', type:'savings',    inst:'Monzo',       bal:2450, prev:2450, updated:'' },
-]);
+];
+let ACCOUNTS = Store.get('accounts', clone(DEFAULT_ACCOUNTS));
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
 
 /* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
    Seeded with Saffron's real symbols (live-wired) but PLACEHOLDER units/cost —
    enter real amounts in-app (never committed). avgCost is in GBP; live price is
    fetched in its native currency (symbol) and converted to GBP on the fly. */
-let HOLDINGS = Store.get('holdings', {
+const DEFAULT_HOLDINGS = {
     'Trading 212': [
         { ticker:'VUAG', name:'Vanguard S&P 500 (Acc)',        symbol:'VUAG.L', priceMode:'live', currency:'GBp', units:0, avgCost:0, lastPrice:0 },
         { ticker:'SEMI', name:'iShares Global Semiconductors',  symbol:'SEMI.L', priceMode:'live', currency:'GBp', units:0, avgCost:0, lastPrice:0 },
@@ -1548,7 +1668,8 @@ let HOLDINGS = Store.get('holdings', {
         { ticker:'XRP',  name:'XRP',                symbol:'XRP-GBP',  priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
         { ticker:'DOGE', name:'Dogecoin',           symbol:'DOGE-GBP', priceMode:'live', currency:'GBP', units:0, avgCost:0, lastPrice:0 },
     ],
-});
+};
+let HOLDINGS = Store.get('holdings', clone(DEFAULT_HOLDINGS));
 
 /* ════════════════════════════════════════════════════
    STATE
@@ -1840,25 +1961,17 @@ function catDetail(name) {
    GOOGLE SHEETS API
    ════════════════════════════════════════════════════ */
 const SheetsAPI = {
-    tokenClient: null,
     accessToken: null,
 
-    init() {
-        if (typeof google === 'undefined' || !google.accounts) { setTimeout(() => this.init(), 400); return; }
-        this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CONFIG.CLIENT_ID,
-            scope: CONFIG.SCOPES,
-            callback: (resp) => {
-                if (resp.error) { this.status('error', resp.error); return; }
-                this.accessToken = resp.access_token;
-                this.fetchData();
-            },
-        });
-    },
+    // Called by Sync once a Google access token is available (fresh OAuth callback
+    // or a still-valid persisted token) → load live Sheets data.
+    useToken(token) { this.accessToken = token; this.fetchData(); },
 
+    // The Connect / Refresh button. One Google login via Supabase OAuth covers
+    // both identity (data sync) and the Sheets read token.
     signIn() {
-        if (!this.tokenClient) { alert('Google sign-in is still loading — try again in a second.'); return; }
-        this.tokenClient.requestAccessToken();
+        if (this.accessToken) { this.fetchData(); return; }  // already authed → just refresh
+        Sync.signIn();
     },
 
     async fetchData() {
@@ -1867,6 +1980,12 @@ const SheetsAPI = {
             const range = encodeURIComponent(CONFIG.SHEET_TAB);
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`;
             const resp = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+            if (resp.status === 401) {  // Google token expired/revoked → reconnect
+                this.accessToken = null;
+                Store.remove('googleToken');
+                this.status('expired');
+                return;
+            }
             if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Fetch failed'); }
             const data = await resp.json();
             this.parse(data.values || []);
@@ -1920,6 +2039,11 @@ const SheetsAPI = {
             lbl.textContent = 'Connection error';
             console.error('Sheets error:', msg);
             alert('Could not connect to Google Sheets:\n' + msg + '\n\nIf this mentions origin/redirect, the localhost port may need adding to the OAuth client in Google Cloud Console.');
+        } else if (state === 'expired') {
+            dot.classList.remove('live');
+            lbl.textContent = 'Session expired — reconnect';
+            btn.textContent = 'Connect Google Sheets';
+            btn.onclick = () => SheetsAPI.signIn();
         } else {
             dot.classList.remove('live');
             lbl.textContent = 'Mock data';
@@ -2896,6 +3020,20 @@ function calcLog() {
     showHPResults(totalH, totalE, approxWeeks, hh, '52-week average · payslip log');
 }
 
+/* Re-read app-owned state from Store after a Supabase hydrate, then repaint.
+   Lets cross-device data (pulled async on sign-in) replace the localStorage
+   values captured at module load. */
+function rehydrateFromStore() {
+    ACCOUNTS       = Store.get('accounts', clone(DEFAULT_ACCOUNTS));
+    INCOME_TARGETS = Store.get('incomeTargets', {});
+    HOLDINGS       = Store.get('holdings', clone(DEFAULT_HOLDINGS));
+    CATEGORY_CLASS = Store.get('categoryClass', {});
+    loadIncomeInputs();   // restore synced income-estimator edits
+    recalc();
+    computeAndRender();
+    renderWealth();
+}
+
 /* ── INIT ──────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
     loadIncomeInputs();   // restore saved income-estimator edits
@@ -2907,7 +3045,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('target-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     document.getElementById('target-month').addEventListener('change', updateTargetNote);
     updateTargetNote();
-    SheetsAPI.init();     // prepare Google sign-in
+    Sync.init();          // Supabase: restore session, single Google login, cross-device sync
 });
 </script>
 </body>

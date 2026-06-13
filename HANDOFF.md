@@ -13,10 +13,12 @@ A working, single-file personal finance dashboard (`index.html`) that reads tran
 **Hosted:** live at `https://saffronlm-cmyk.github.io/folio-dashboard/`.
 
 **Status of earlier manual actions (as of 2026-06-13):**
-- **OAuth origin** — Saffron believes it's added; **confirm** by tapping Connect Google Sheets on the hosted site (loads Emma data = done; an origin/redirect error = still needs `https://saffronlm-cmyk.github.io` added in Google Cloud Console, see §9).
-- **Yahoo symbols verified** ✅ and **real units + avg cost entered** ✅ — but **on Saffron's phone only**. localStorage is per-device/per-browser, so that data does **not** exist on her laptop/other browsers. Closing this gap is the main reason to prioritise Supabase.
+- **OAuth origin** — ✅ **confirmed working** (Connect on the hosted site loads Emma data). The hosted origin is registered on the OAuth client.
+- **Yahoo symbols verified** ✅ and **real units + avg cost entered** ✅ — but **on Saffron's phone only**. localStorage is per-device/per-browser, so that data does **not** exist on her laptop/other browsers. **The Supabase sync build below closes this gap.**
 
-**Next builds (designs in §8):** (1) **Supabase backend (§8a)** — now higher priority: cross-device sync (her phone-entered holdings → laptop) + real T212/Binance positions via API. (2) Budget estimator tab (§8b).
+**In progress:** **Supabase backend / cross-device sync (§8a)** — built on branch `claude/oauth-connect-handoff-ic4476` (KV-mirror of `Store` → `public.user_data`, single Google login via Supabase OAuth). **Blocked on one manual step** before live sign-in works: enable the Google provider in Supabase + add the callback redirect URI in Google Cloud Console (see §9).
+
+**Next builds (designs in §8):** (1) finish/verify **Supabase sync (§8a)** once the provider is configured. (2) Budget estimator tab (§8b).
 
 > Canonical file: **`index.html`** at the repo root (single file, no build step).
 
@@ -111,7 +113,7 @@ Connect Google → SheetsAPI.fetchData()
 ### 8a. Storage / hosting (do first)
 1. **Host the static file** — GitHub Pages (root) or Netlify drag-drop. Gives a URL → works on phone.
 2. **Add the hosted origin** to the OAuth client's Authorized JavaScript origins (Google Cloud Console) or sign-in fails.
-3. **Supabase later** (already available): tables `accounts`, `holdings`, `budget_targets`, `income_inputs`, `monthly_targets`; add auth; **swap only the `Store` adapter** (`Store.get/set` → Supabase calls). Optional: manifest + service worker → installable PWA.
+3. **Supabase** (in progress, branch `claude/oauth-connect-handoff-ic4476`): **chosen design = KV-mirror**, not the normalized tables originally sketched here. One table `public.user_data (user_id, key, value jsonb)` mirrors the existing `Store` keys 1:1 → least code, trivial RLS, fastest to working sync; the app was already architected around a KV `Store`. Normalized `accounts`/`holdings` tables can come later when server-side T212/Binance **position** writes need them. Auth = single Google login via Supabase OAuth (see §9). Optional later: manifest + service worker → installable PWA.
 
 ### 8b. Budget estimator tab
 - **Auto-estimate** per category = **median of the last 3–6 pay periods** (median resists one-off spikes). Needs Emma connected.
@@ -132,11 +134,27 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 9. Resume steps (next session)
 
-**Loose ends (see §1):** confirm OAuth works (Connect on the hosted site); if it errors on origin, add `https://saffronlm-cmyk.github.io` in Google Cloud Console → Credentials → OAuth client `185610168060-…` → Authorized JavaScript origins (keep `http://localhost:9000`; add `saffronlm@gmail.com` as a Test user if "Access blocked"). Symbols + real units are already entered, but **only on Saffron's phone** (per-device localStorage).
+**OAuth origin:** ✅ confirmed working on the hosted site — no action needed.
 
-**Next build — recommended order:**
-1. **Supabase backend (§8a)** — bumped to first: swap the `Store` adapter for cross-device sync so her phone-entered holdings/units show on the laptop too, and so real T212/Binance **positions** can be pulled via API (keys live in a server-side edge function — never in `index.html`). Tables: `accounts`, `holdings`, `budget_targets`, `income_inputs`, `monthly_targets`. Keep the localStorage adapter as offline fallback.
-2. **Budget estimator tab (§8b)** — reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast. Slots into the existing tab/period model; keep the mock fallback working.
+### Supabase sync — built, pending one manual config step
+
+Branch `claude/oauth-connect-handoff-ic4476` adds cross-device sync via Supabase (project `jsxcctrskkkxgdxfaduo`, "saffronlilith's Project"). Design chosen: **KV-mirror** (lowest-risk adapter swap, mirrors the existing `Store` key/value shapes) + **single Google login** (Supabase OAuth provides both app identity and the Sheets read token via `session.provider_token`).
+
+**What's built (in `index.html`):**
+- `Store` is now write-through: app-owned keys (`SYNC_KEYS` = accounts, incomeTargets, holdings, categoryClass, incomeInputs) mirror to `public.user_data` when signed in; `get` stays synchronous off localStorage. Not signed in / offline → local-only (mock fallback intact).
+- `Sync` module: Supabase client, `signInWithOAuth({provider:'google', scopes: Sheets readonly})`, session restore, and `hydrateAndMigrate()` (first sign-in seeds remote from local; thereafter remote wins, local-only keys pushed up). `rehydrateFromStore()` repaints after an async pull.
+- DB: table `public.user_data (user_id, key, value jsonb, updated_at)`, RLS owner-only (migration `emma_dashboard_user_data_kv`), advisor-clean.
+- Known limitation (accepted): Supabase doesn't silently refresh `provider_token` (~1h). Persisted to localStorage so reloads within the hour keep live Sheets; on 401 the status bar shows "Session expired — reconnect". Proper refresh = an edge function later.
+
+**🔒 BLOCKING manual step (only Saffron can do — needs the OAuth client secret):**
+1. **Supabase → Authentication → Sign In / Providers → Google:** enable it; paste the existing OAuth client's **Client ID** (`185610168060-…`) and its **Client secret**.
+2. **Google Cloud Console → Credentials → OAuth client `185610168060-…` → Authorized redirect URIs:** add `https://jsxcctrskkkxgdxfaduo.supabase.co/auth/v1/callback`. (Keep the existing JavaScript origins.)
+3. Then tap **Connect Google Sheets** on the hosted site → Google consent → returns signed in, Emma data loads, and holdings/units sync across devices.
+
+**Verify after config:** sign in on phone (seeds remote from existing local holdings) → sign in on laptop in a fresh browser → confirm the same units/avg-costs appear.
+
+**Next build after that:**
+- **Budget estimator tab (§8b)** — reuses `aggregate()` over the last 3–6 pay periods (median) + `Store('budgetTargets')` overrides + run-rate forecast. Slots into the existing tab/period model; keep the mock fallback working.
 
 ---
 
