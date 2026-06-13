@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Emma Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -781,12 +781,45 @@
             .cb-row.net { grid-column: 1; }
         }
         @media (max-width: 640px) {
-            :root { --sw: 54px; }
-            .sidebar { padding: 18px 7px; }
-            .brand, .nav-item span, .sidebar-foot { display: none; }
-            .nav-item { justify-content: center; padding: 10px; }
-            .page { padding: 16px 14px 40px; }
+            :root { --sw: 0px; }
+            /* Sidebar → native bottom tab bar */
+            .sidebar {
+                flex-direction: row;
+                top: auto; bottom: 0; left: 0;
+                width: 100%; height: auto;
+                padding: 5px 4px calc(5px + env(safe-area-inset-bottom));
+                align-items: stretch;
+                border-top: 1px solid rgba(255,255,255,0.08);
+            }
+            .brand { display: none; }
+            .nav-item {
+                flex: 1; min-width: 0;
+                flex-direction: column; gap: 3px;
+                padding: 6px 2px; margin: 0;
+                font-size: 9px; text-align: center;
+            }
+            .nav-item span:not(.nav-icon) {
+                max-width: 100%; line-height: 1.1;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            .nav-icon { font-size: 18px; width: auto; }
+            /* Connect/Refresh kept reachable as a compact icon cell */
+            .sidebar-foot {
+                margin: 0; padding: 0 2px;
+                flex: 0 0 auto;
+                display: flex; align-items: center; justify-content: center;
+            }
+            .signin-btn { width: 42px; height: 42px; padding: 0; font-size: 0; border-radius: 11px; }
+            .signin-btn::before { content: "🔗"; font-size: 18px; }
+            .conn-row { display: none; }
+
+            .main { margin-left: 0; padding-bottom: 72px; }
+            .page { padding: 16px 14px 30px; }
             .period-bar { padding: 9px 14px; }
+            /* KPI cards: 3-up, compact, avoids the orphan a 2-col leaves */
+            .cat-kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+            .ckpi { padding: 12px 10px; }
+            .ckpi-val { font-size: 16px; letter-spacing: -0.3px; }
         }
     </style>
 </head>
