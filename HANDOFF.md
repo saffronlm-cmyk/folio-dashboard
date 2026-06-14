@@ -164,16 +164,14 @@ Connect Google → SheetsAPI.fetchData()
 **OAuth origin:** ✅ confirmed working on the hosted site — no action needed.
 **Supabase cross-device sync (§8a):** ✅ **done & verified 2026-06-14** — merged (PR #6) + a 403-scope re-auth hardening follow-up. No outstanding setup. (Architecture recap lives in §8a + §1.)
 
-### In progress — Budget estimator tab (§8b)
+### ✅ Done — Budget estimator tab (§8b)
 
-Full canonical design now lives in **§8b** (expanded 2026-06-14). **v1 scope (agreed):** Core + **Safe-to-spend headline** — own pay-period stepper, median auto-budgets (zeros counted, last 6 periods), overrides (`budgetTargets` → `SYNC_KEYS`), Fixed/Variable rows with progress bars + pace marker, run-rate forecast (variable-only extrapolation), total-vs-income KPI strip, safe-to-spend headline, over/under flags on the Categories cards, full mock parity via `HIST_MOCK`.
-
-**Fit the patterns:** new tab in the nav; periods via `payPeriod()` (anchored on the 20th); derived numbers go into `buildLiveView()/buildMockView()`, not ad-hoc in renderers; reuse `classOf()` for fixed/variable grouping; `budgetTargets` syncs once added to `SYNC_KEYS` (no schema change).
+Merged (PRs #8–#10, 2026-06-14). Full canonical design lives in **§8b**. **Shipped:** Core + **Safe-to-spend headline** — own pay-period stepper, median auto-budgets (zeros counted, last 6 periods), overrides (`budgetTargets` → `SYNC_KEYS`), Fixed/Variable rows with progress bars + pace marker, run-rate forecast (variable-only extrapolation), total-vs-income KPI strip, over/under flags on the Categories cards, full mock parity via `HIST_MOCK`. Follow-ups: re-render Budget tab when live data loads (#9); `canonCat()` category-alias layer merging e.g. Public Transport → Transport (#10).
 
 ### Roadmap after Budget (agreed order)
 1. **Insights strip** — rules engine over `VIEW` + budgets (templated plain-English: over/under, on-track-to-save, spike-vs-median). Cheap once budgets exist.
-2. **Net worth over time** — auto-snapshot `netWorthTotal()` once per pay period into a synced Store key → trend line + monthly delta on Wealth. The one structural add (gives the snapshot-only app history).
-3. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
+2. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
+3. **Net worth over time** — auto-snapshot `netWorthTotal()` once per pay period into a synced Store key → trend line + monthly delta on Wealth. The one structural add (gives the snapshot-only app history).
 4. **Upcoming bills calendar** — project next ~30 days from `detectRecurring()`'s day-of-month; pairs with safe-to-spend.
 
 ---
