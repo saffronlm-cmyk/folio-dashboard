@@ -1923,13 +1923,26 @@ function prevRangeFor(sel) {
    ════════════════════════════════════════════════════ */
 function excluded(cat) { return /exclud|transfer/i.test(String(cat || '')); }
 
+/* Category aliases — merge synonymous source categories into one canonical
+   name. Applied at aggregation, so it flows to every tab (Overview, Categories,
+   Budget, drill-downs). Keyed by lower-case source name. Add pairs as needed. */
+const CATEGORY_ALIASES = {
+    'public transport': 'Transport',
+    'transport': 'Transport',
+};
+function canonCat(name) {
+    const raw = String(name || '').trim();
+    if (!raw) return 'Uncategorised';
+    return CATEGORY_ALIASES[raw.toLowerCase()] || raw;
+}
+
 function aggregate(start, end) {
     let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0;
     const map = {}, imap = {};
     for (const t of RAW_TX) {
         if (t.date < start || t.date > end) continue;
         if (excluded(t.category)) { excludedTotal += Math.abs(t.amount); excludedCount++; continue; }
-        const k = t.category || 'Uncategorised';
+        const k = canonCat(t.category);
         if (t.amount < 0) {
             totalSpend += -t.amount;
             (map[k] = map[k] || { name:k, amt:0, tx:0, txs:[] });
