@@ -2199,6 +2199,9 @@ function computeAndRender() {
     renderCatRows();
     renderRecurring();
     renderExcluded();
+    // Budget tab is rendered on demand (switchTab); if it's the active tab when
+    // live data loads, re-render it too so it reflects RAW_TX, not stale mock.
+    if (document.getElementById('tab-budget').classList.contains('active')) renderBudget();
     closeSubview(); // avoid stale drill-down after a period change
 }
 
