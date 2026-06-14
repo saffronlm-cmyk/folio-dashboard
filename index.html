@@ -1980,13 +1980,21 @@ const SheetsAPI = {
             const range = encodeURIComponent(CONFIG.SHEET_TAB);
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`;
             const resp = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
-            if (resp.status === 401) {  // Google token expired/revoked → reconnect
-                this.accessToken = null;
-                Store.remove('googleToken');
-                this.status('expired');
-                return;
+            if (!resp.ok) {
+                let detail = '';
+                try { const e = await resp.json(); detail = e.error?.message || ''; } catch (_) {}
+                // Token-level problems → ditch the token and prompt a fresh Google
+                // consent. 401 = expired/revoked; 403 "insufficient scopes" = signed
+                // in without granting the Sheets permission. Re-tapping Connect runs
+                // OAuth again (prompt:consent) so the Sheets scope can be granted.
+                if (resp.status === 401 || (resp.status === 403 && /scope/i.test(detail))) {
+                    this.accessToken = null;
+                    Store.remove('googleToken');
+                    this.status(resp.status === 401 ? 'expired' : 'scope');
+                    return;
+                }
+                throw new Error(detail || 'Fetch failed');
             }
-            if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Fetch failed'); }
             const data = await resp.json();
             this.parse(data.values || []);
             CONNECTED = true;
@@ -2042,6 +2050,11 @@ const SheetsAPI = {
         } else if (state === 'expired') {
             dot.classList.remove('live');
             lbl.textContent = 'Session expired — reconnect';
+            btn.textContent = 'Connect Google Sheets';
+            btn.onclick = () => SheetsAPI.signIn();
+        } else if (state === 'scope') {
+            dot.classList.remove('live');
+            lbl.textContent = 'Reconnect & allow Sheets access';
             btn.textContent = 'Connect Google Sheets';
             btn.onclick = () => SheetsAPI.signIn();
         } else {
