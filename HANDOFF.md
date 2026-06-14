@@ -168,11 +168,14 @@ Connect Google → SheetsAPI.fetchData()
 
 Merged (PRs #8–#10, 2026-06-14). Full canonical design lives in **§8b**. **Shipped:** Core + **Safe-to-spend headline** — own pay-period stepper, median auto-budgets (zeros counted, last 6 periods), overrides (`budgetTargets` → `SYNC_KEYS`), Fixed/Variable rows with progress bars + pace marker, run-rate forecast (variable-only extrapolation), total-vs-income KPI strip, over/under flags on the Categories cards, full mock parity via `HIST_MOCK`. Follow-ups: re-render Budget tab when live data loads (#9); `canonCat()` category-alias layer merging e.g. Public Transport → Transport (#10).
 
-### Roadmap after Budget (agreed order)
-1. **Insights strip** — rules engine over `VIEW` + budgets (templated plain-English: over/under, on-track-to-save, spike-vs-median). Cheap once budgets exist.
-2. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
-3. **Net worth over time** — auto-snapshot `netWorthTotal()` once per pay period into a synced Store key → trend line + monthly delta on Wealth. The one structural add (gives the snapshot-only app history).
-4. **Upcoming bills calendar** — project next ~30 days from `detectRecurring()`'s day-of-month; pairs with safe-to-spend.
+### ✅ Done — Insights strip
+
+Cross-tab rules engine (`buildInsights()` → `{id,priority,tone,icon,text,domain,navTab,dedupeKey}`). A strip per tab (`#ins-<tab>`); each tab shows its domains (`TAB_DOMAINS`), Overview is a digest (best of each domain in `OVERVIEW_DOMAINS`). `pickInsights()` sorts by priority, de-dupes by category, caps at 4; clicking a card calls `gotoTab()`. 11 rules across spend/budget/save/category/wealth/income, material-only thresholds, budget rules guarded to the current pay/monthly period. Wealth rules read live `Prices` day-change + allocation. Shared `budgetSummary(offset)` extracted from `renderBudget()` so the Budget tab and insights use one projection/safe-to-spend source. Rendered from `computeAndRender`/`switchTab`/`recalc`/budget edits/`Prices.refresh`. Full mock parity. **Tunable:** the `'budget'` domain currently also surfaces safe-to-spend on the Categories strip — narrow per-insight allow-lists if that's unwanted.
+
+### Roadmap remaining (agreed order)
+1. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
+2. **Net worth over time** — auto-snapshot `netWorthTotal()` once per pay period into a synced Store key → trend line + monthly delta on Wealth. The one structural add (gives the snapshot-only app history). *Also unlocks a net-worth-trend insight.*
+3. **Upcoming bills calendar** — project next ~30 days from `detectRecurring()`'s day-of-month; pairs with safe-to-spend.
 
 ---
 

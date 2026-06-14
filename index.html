@@ -913,6 +913,25 @@
         .ckpi-budget { font-size: 11px; font-weight: 700; margin-top: 5px; }
         .ckpi-budget.under { color: var(--positive); }
         .ckpi-budget.over { color: var(--negative); }
+
+        /* ─── INSIGHTS STRIP ──────────────────────── */
+        .insight-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+        .insight-strip:empty { display: none; }
+        .insight-card {
+            flex: 1 1 0; min-width: 210px; background: var(--card); border: 1px solid var(--border);
+            border-left-width: 4px; border-radius: 10px; padding: 12px 14px; cursor: pointer;
+            display: flex; gap: 10px; align-items: flex-start; transition: background 0.15s;
+        }
+        .insight-card:hover { background: var(--bg); }
+        .insight-card.good { border-left-color: var(--positive); }
+        .insight-card.warn { border-left-color: var(--accent); }
+        .insight-card.bad  { border-left-color: var(--negative); }
+        .insight-card.info { border-left-color: var(--muted); }
+        .insight-ico { font-size: 16px; line-height: 1.3; flex-shrink: 0; }
+        .insight-txt { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.35; }
+        @media (max-width: 812px) {
+            .insight-card { min-width: 80%; }
+        }
     </style>
 </head>
 <body>
@@ -1008,6 +1027,8 @@
         </div>
     </div>
 
+    <div class="insight-strip gap" id="ins-overview"></div>
+
     <!-- Spend over time + period compare -->
     <div class="g2 gap">
         <div class="chart-card">
@@ -1047,6 +1068,7 @@
 
     <!-- List view -->
     <div id="cat-list-view">
+        <div class="insight-strip" id="ins-categories" style="margin:20px 0 0"></div>
         <div class="toggle-group" style="margin:20px 0 14px">
             <div class="tog-btn active" id="cm-spend" onclick="setCatMode('spend')">Spending</div>
             <div class="tog-btn" id="cm-income" onclick="setCatMode('income')">Income</div>
@@ -1118,6 +1140,8 @@
 
 <!-- ══════════════════════════════ TAB 3: SAVINGS ══ -->
 <div class="page" id="tab-wealth">
+
+    <div class="insight-strip" id="ins-wealth" style="margin:20px 0 0"></div>
 
     <!-- ── LEVEL 0: NET WORTH LANDING ─────────────── -->
     <div id="wealth-landing">
@@ -1192,7 +1216,8 @@
 
 <!-- ═══════════════════════════════ TAB 5: INCOME ══ -->
 <div class="page" id="tab-income">
-    <p class="page-meta" style="margin-top:20px;margin-bottom:20px">UK 2025/26 tax year · PAYE</p>
+    <div class="insight-strip" id="ins-income" style="margin-top:20px"></div>
+    <p class="page-meta" style="margin-top:18px;margin-bottom:20px">UK 2025/26 tax year · PAYE</p>
 
     <!-- Two role cards -->
     <div class="est-grid">
@@ -1358,6 +1383,8 @@
         <button class="bgt-step" id="bgt-next" onclick="budgetStep(-1)">›</button>
         <div class="bgt-period" id="bgt-period">—</div>
     </div>
+
+    <div class="insight-strip" id="ins-budget"></div>
 
     <div class="bgt-safe" id="bgt-safe">
         <div>
@@ -2215,6 +2242,7 @@ function computeAndRender() {
     // Budget tab is rendered on demand (switchTab); if it's the active tab when
     // live data loads, re-render it too so it reflects RAW_TX, not stale mock.
     if (document.getElementById('tab-budget').classList.contains('active')) renderBudget();
+    renderAllInsights();
     closeSubview(); // avoid stale drill-down after a period change
 }
 
@@ -2584,27 +2612,26 @@ function saveBudgetTarget(name, val) {
     Store.set('budgetTargets', BUDGET_TARGETS);
     refreshBudgets(); renderBudget();
     renderCatGrid(VIEW); renderCatRows();   // refresh cross-tab flags
+    renderAllInsights();
 }
 function resetBudgetTarget(name) {
     delete BUDGET_TARGETS[name];
     Store.set('budgetTargets', BUDGET_TARGETS);
     refreshBudgets(); renderBudget();
     renderCatGrid(VIEW); renderCatRows();
+    renderAllInsights();
 }
 
-function renderBudget() {
+// Shared budget computation for a pay period (consumed by the Budget tab and
+// the insights engine, so the projection/safe-to-spend logic lives in one place).
+function budgetSummary(offset) {
     refreshBudgets();
-    const p = payPeriod(BUDGET_OFFSET), now = new Date();
+    const p = payPeriod(offset), now = new Date();
     const elapsed = Math.max(0, Math.min(1, (now - p.start) / (p.end - p.start)));
-    const isCurrent = BUDGET_OFFSET === 0 && now <= p.end;
+    const isCurrent = offset === 0 && now <= p.end;
     const daysLeft = isCurrent ? Math.max(0, Math.ceil((p.end - now) / 864e5)) : 0;
 
-    document.getElementById('bgt-period').innerHTML =
-        `${fmtRange(p.start, p.end)}<small>${isCurrent ? `pay period · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'completed pay period'}</small>`;
-    document.getElementById('bgt-next').disabled = BUDGET_OFFSET === 0;
-    document.getElementById('bgt-prev').disabled = BUDGET_OFFSET >= budgetMaxOffset();
-
-    const spentMap = periodSpendMap(BUDGET_OFFSET);
+    const spentMap = periodSpendMap(offset);
     const names = new Set([...Object.keys(BUDGETS), ...Object.keys(spentMap)]);
     const rows = [];
     names.forEach(name => {
@@ -2621,15 +2648,31 @@ function renderBudget() {
     const fixedRows = rows.filter(r => r.fixed).sort((a, b) => b.target - a.target);
     const varRows   = rows.filter(r => !r.fixed).sort((a, b) => b.target - a.target);
 
-    const totalBudget = rows.reduce((s, r) => s + r.target, 0);
-    const totalSpent  = rows.reduce((s, r) => s + r.spent, 0);
-    const totalProj   = rows.reduce((s, r) => s + (r.projected == null ? r.spent : r.projected), 0);
+    const totalBudget    = rows.reduce((s, r) => s + r.target, 0);
+    const totalSpent     = rows.reduce((s, r) => s + r.spent, 0);
+    const totalProjected = rows.reduce((s, r) => s + (r.projected == null ? r.spent : r.projected), 0);
 
     // Safe-to-spend: est income − fixed commitments − unspent variable budget.
     const estIncome    = (LAST_INCOME && LAST_INCOME.grandTotal) ? Math.round(LAST_INCOME.grandTotal) : (VIEW ? VIEW.totalIncome : 0);
     const fixedCommit  = fixedRows.reduce((s, r) => s + Math.max(r.spent, r.target), 0);
     const varRemaining = varRows.reduce((s, r) => s + Math.max(r.target - r.spent, 0), 0);
     const safePot      = estIncome - fixedCommit - varRemaining;
+    const safePerDay   = (isCurrent && daysLeft > 0) ? safePot / daysLeft : safePot;
+    return { p, elapsed, isCurrent, daysLeft, rows, fixedRows, varRows,
+             totalBudget, totalSpent, totalProjected, estIncome, fixedCommit, varRemaining, safePot, safePerDay };
+}
+
+function renderBudget() {
+    const S = budgetSummary(BUDGET_OFFSET);
+    const { p, elapsed, isCurrent, daysLeft, rows, fixedRows, varRows,
+            totalBudget, totalSpent, estIncome, safePot } = S;
+    const totalProj = S.totalProjected;
+
+    document.getElementById('bgt-period').innerHTML =
+        `${fmtRange(p.start, p.end)}<small>${isCurrent ? `pay period · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'completed pay period'}</small>`;
+    document.getElementById('bgt-next').disabled = BUDGET_OFFSET === 0;
+    document.getElementById('bgt-prev').disabled = BUDGET_OFFSET >= budgetMaxOffset();
+
     const safeEl = document.getElementById('bgt-safe');
     if (!isCurrent) {
         const out = totalBudget - totalSpent;
@@ -2703,6 +2746,162 @@ function renderBudget() {
     document.getElementById('bgt-var-sub').textContent   = sub(varRows);
 }
 
+/* ════════════════════════════════════════════════════
+   INSIGHTS — rules engine over VIEW + budgets + holdings.
+   Each rule emits {id, priority, tone, icon, text, domain, navTab, dedupeKey?}
+   or nothing. A strip per tab shows the insights for that tab's domains;
+   the Overview strip is a digest (best of each domain).
+   ════════════════════════════════════════════════════ */
+const TAB_DOMAINS = {
+    categories: ['category', 'budget', 'spend'],
+    budget:     ['budget', 'save'],
+    wealth:     ['wealth'],
+    income:     ['income', 'save'],
+};
+const OVERVIEW_DOMAINS = ['spend', 'save', 'budget', 'wealth'];
+
+function buildInsights() {
+    const out = [];
+    const push = o => out.push(o);
+    const V = VIEW;
+    if (!V) return out;
+
+    // Budget figures reflect the live pay period; only compare against monthly
+    // budgets when the global bar is on the current pay/monthly period.
+    const budgetGuard = (CUR.mode === 'pay' || CUR.mode === 'monthly') && (CUR.offset || 0) === 0;
+    const bs = budgetSummary(0);
+    const estIncome = bs.estIncome;
+
+    // 1 — worst category already over budget
+    if (budgetGuard) {
+        const o = bs.rows.filter(r => r.target > 0 && r.spent > r.target)
+            .map(r => ({ r, d: r.spent - r.target })).sort((a, b) => b.d - a.d)[0];
+        if (o && o.d >= 25) push({ id: 'overbudget', priority: 100, tone: 'bad', icon: '🚨', domain: 'budget',
+            text: `${o.r.name} is £${Math.round(o.d).toLocaleString()} over budget.`, navTab: 'budget', dedupeKey: o.r.name });
+    }
+    // 2 — on pace to overspend (not yet over)
+    if (budgetGuard) {
+        const o = bs.rows.filter(r => r.target > 0 && r.projected != null && r.spent <= r.target && r.projected > r.target)
+            .map(r => ({ r, d: r.projected - r.target })).sort((a, b) => b.d - a.d)[0];
+        if (o && o.d >= 25) push({ id: 'overpace', priority: 85, tone: 'warn', icon: '⏳', domain: 'budget',
+            text: `${o.r.name} is on pace to go £${Math.round(o.d).toLocaleString()} over budget.`, navTab: 'budget', dedupeKey: o.r.name });
+    }
+    // 3 — category spike vs its usual median
+    if (budgetGuard) {
+        const s = V.cats.map(c => { const auto = BUDGETS[c.name] ? BUDGETS[c.name].auto : 0; return { c, auto, d: c.amt - auto }; })
+            .filter(x => x.auto > 0 && x.c.amt > x.auto * 1.5 && x.d >= 40).sort((a, b) => b.d - a.d)[0];
+        if (s) push({ id: 'spike', priority: 70, tone: 'warn', icon: '📈', domain: 'category',
+            text: `${s.c.name} £${s.c.amt.toLocaleString()} — £${Math.round(s.d).toLocaleString()} above its usual £${s.auto.toLocaleString()}.`, navTab: 'categories', dedupeKey: s.c.name });
+    }
+    // 4 — category win (notable drop vs last period)
+    {
+        const w = V.cats.filter(c => c.momPct <= -15 && (c.prevAmt - c.amt) >= 25).sort((a, b) => a.momPct - b.momPct)[0];
+        if (w) push({ id: 'win', priority: 18, tone: 'good', icon: '🎉', domain: 'category',
+            text: `${w.name} down ${Math.abs(w.momPct)}% vs last period — nice.`, navTab: 'categories', dedupeKey: w.name });
+    }
+    // 5 — total spend vs last period (projection-aware mid-period)
+    if (V.prevSpend > 0) {
+        const projTotal = budgetGuard ? bs.totalProjected : V.totalSpend;
+        const diff = Math.round(projTotal - V.prevSpend);
+        const pct = Math.round((projTotal - V.prevSpend) / V.prevSpend * 100);
+        const tw = (budgetGuard && V.partial) ? 'tracking ' : '';
+        if (pct >= 15 && diff >= 25) push({ id: 'spendup', priority: 65, tone: 'warn', icon: '🔺', domain: 'spend',
+            text: `Spending is ${tw}${pct}% (£${Math.abs(diff).toLocaleString()}) above last period.`, navTab: 'categories' });
+        else if (pct <= -15 && -diff >= 25) push({ id: 'spenddown', priority: 38, tone: 'good', icon: '🔻', domain: 'spend',
+            text: `Spending is ${tw}${Math.abs(pct)}% (£${Math.abs(diff).toLocaleString()}) below last period.`, navTab: 'categories' });
+    }
+    // 6 — on track to save / over-committed
+    if (budgetGuard && estIncome > 0) {
+        const save = Math.round(estIncome - bs.totalProjected);
+        if (save >= 25) push({ id: 'save', priority: 45, tone: 'good', icon: '💰', domain: 'save',
+            text: `On track to save ~£${save.toLocaleString()} this period.`, navTab: 'income' });
+        else if (save < 0) push({ id: 'oversave', priority: 75, tone: 'bad', icon: '⚠️', domain: 'save',
+            text: `Projected spend is £${Math.abs(save).toLocaleString()} over your est. income.`, navTab: 'budget' });
+    }
+    // 7 — safe to spend per day (current period only)
+    if (budgetGuard && bs.isCurrent && bs.daysLeft > 0 && bs.safePot > 0) {
+        push({ id: 'safe', priority: 35, tone: 'info', icon: '🟢', domain: 'budget',
+            text: `£${Math.round(bs.safePerDay).toLocaleString()}/day safe to spend for ${bs.daysLeft} day${bs.daysLeft === 1 ? '' : 's'}.`, navTab: 'budget' });
+    }
+
+    // ── Wealth (live prices + allocation) ──
+    const liveH = Object.values(HOLDINGS).flat().filter(h => h.priceMode === 'live' && h.dayPct != null);
+    // 8 — portfolio today
+    if (liveH.length) {
+        let v = 0, prev = 0;
+        for (const h of liveH) { const val = holdingValue(h); if (!val) continue; v += val; prev += val / (1 + h.dayPct / 100); }
+        if (prev > 0) {
+            const dp = (v - prev) / prev * 100, ch = v - prev;
+            if (Math.abs(ch) >= 10) push({ id: 'ptoday', priority: 60, tone: dp >= 0 ? 'good' : 'warn', icon: dp >= 0 ? '📈' : '📉', domain: 'wealth',
+                text: `Investments ${dp >= 0 ? 'up' : 'down'} ${Math.abs(dp).toFixed(1)}% today (${dp >= 0 ? '+' : '−'}£${Math.abs(Math.round(ch)).toLocaleString()}).`, navTab: 'wealth' });
+        }
+    }
+    // 9 — biggest mover
+    {
+        const m = liveH.filter(h => Math.abs(h.dayPct) >= 2).sort((a, b) => Math.abs(b.dayPct) - Math.abs(a.dayPct))[0];
+        if (m) push({ id: 'mover', priority: 50, tone: m.dayPct >= 0 ? 'good' : 'warn', icon: m.dayPct >= 0 ? '🚀' : '🔻', domain: 'wealth',
+            text: `${m.ticker || m.symbol} ${m.dayPct >= 0 ? '+' : '−'}${Math.abs(m.dayPct).toFixed(1)}% today.`, navTab: 'wealth', dedupeKey: 'mover' });
+    }
+    // 10 — allocation split
+    {
+        const net = netWorthTotal();
+        if (net > 0) {
+            const inv = accountsInGroup('investments').reduce((s, a) => s + accountValue(a), 0);
+            const sav = accountsInGroup('savings').reduce((s, a) => s + accountValue(a), 0);
+            push({ id: 'alloc', priority: 22, tone: 'info', icon: '⚖️', domain: 'wealth',
+                text: `Investments are ${Math.round(inv / net * 100)}% of net worth · £${Math.round(sav).toLocaleString()} in savings.`, navTab: 'wealth' });
+        }
+    }
+    // 11 — income estimate vs last period
+    if (estIncome > 0 && V.prevIncome > 0) {
+        const d = Math.round(estIncome - V.prevIncome);
+        if (Math.abs(d) >= 25) push({ id: 'incest', priority: 25, tone: d >= 0 ? 'good' : 'info', icon: '📅', domain: 'income',
+            text: `Next-period income est. £${estIncome.toLocaleString()} (${d >= 0 ? '+' : '−'}£${Math.abs(d).toLocaleString()} vs last).`, navTab: 'income' });
+    }
+
+    return out;
+}
+
+function pickInsights(all, tab) {
+    const byPri = (a, b) => b.priority - a.priority;
+    let picks;
+    if (tab === 'overview') {
+        picks = OVERVIEW_DOMAINS.map(d => all.filter(i => i.domain === d).sort(byPri)[0]).filter(Boolean);
+    } else {
+        const allow = TAB_DOMAINS[tab] || [];
+        picks = all.filter(i => allow.includes(i.domain)).sort(byPri);
+    }
+    // de-dupe by category/dedupeKey, keep highest priority, cap at 4
+    const seen = new Set(), result = [];
+    for (const i of picks) {
+        const k = i.dedupeKey || i.id;
+        if (seen.has(k)) continue;
+        seen.add(k); result.push(i);
+        if (result.length >= 4) break;
+    }
+    return result;
+}
+
+function renderInsights(tab, pool) {
+    const el = document.getElementById('ins-' + tab);
+    if (!el) return;
+    const picks = pickInsights(pool || buildInsights(), tab);
+    if (!picks.length) {
+        el.innerHTML = `<div class="insight-card info"><div class="insight-ico">✅</div><div class="insight-txt">Nothing needs your attention right now.</div></div>`;
+        return;
+    }
+    el.innerHTML = picks.map(i =>
+        `<div class="insight-card ${i.tone}" onclick="gotoTab('${i.navTab}')"><div class="insight-ico">${i.icon}</div><div class="insight-txt">${i.text}</div></div>`
+    ).join('');
+}
+function renderAllInsights() { const all = buildInsights(); ['overview', 'categories', 'budget', 'wealth', 'income'].forEach(t => renderInsights(t, all)); }
+
+// Navigate to a tab from an insight card (no nav element handy → sync the sidebar).
+function gotoTab(name) {
+    const nav = [...document.querySelectorAll('.nav-item')].find(n => n.getAttribute('onclick') && n.getAttribute('onclick').includes(`'${name}'`));
+    if (nav) switchTab(name, nav);
+}
+
 function switchTab(name, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -2710,6 +2909,7 @@ function switchTab(name, el) {
     el.classList.add('active');
     if (name === 'wealth') { renderWealth(); Prices.refresh(false); }  // render + pull live prices if stale
     if (name === 'budget') renderBudget();
+    renderInsights(name);
 }
 function setToggle(mode, el) {
     document.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
@@ -3150,6 +3350,7 @@ const Prices = {
         } finally {
             PRICES_UPDATING = false;
             renderWealth();
+            renderInsights('wealth'); renderInsights('overview');   // day-change feeds these strips
         }
     },
 
@@ -3287,6 +3488,7 @@ function recalc() {
     LAST_INCOME = { gross:combAnn/12, net:netMon, cash:cashMon, grandTotal:grand };
     saveIncomeInputs();   // persist edits so they survive a reload
     renderNextIncome();
+    if (VIEW) renderAllInsights();   // income feeds save / safe-to-spend / income-estimate insights
 }
 
 /* Persist / restore the income estimator inputs (localStorage via Store) */
