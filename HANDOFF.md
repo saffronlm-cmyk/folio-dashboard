@@ -117,10 +117,35 @@ Connect Google → SheetsAPI.fetchData()
 2. **Add the hosted origin** to the OAuth client's Authorized JavaScript origins (Google Cloud Console) or sign-in fails.
 3. **Supabase** (in progress, branch `claude/oauth-connect-handoff-ic4476`): **chosen design = KV-mirror**, not the normalized tables originally sketched here. One table `public.user_data (user_id, key, value jsonb)` mirrors the existing `Store` keys 1:1 → least code, trivial RLS, fastest to working sync; the app was already architected around a KV `Store`. Normalized `accounts`/`holdings` tables can come later when server-side T212/Binance **position** writes need them. Auth = single Google login via Supabase OAuth (see §9). Optional later: manifest + service worker → installable PWA.
 
-### 8b. Budget estimator tab
-- **Auto-estimate** per category = **median of the last 3–6 pay periods** (median resists one-off spikes). Needs Emma connected.
-- **Override** per category (typed target), persisted via `Store` (`budgetTargets`); no override → use auto-estimate.
-- **Surface it:** progress bars (spent vs budget) per category, total budget vs total spend, and a **run-rate forecast** (projected end-of-period spend at current pace). Add over/under-budget flags to the category cards.
+### 8b. Budget estimator tab — canonical design (planned 2026-06-14)
+
+**Tab placement & period model.** New `Budget` tab between Categories and Wealth (`switchTab('budget')` → `renderBudget()`, page `#tab-budget`). The budget is a **per-pay-period** figure (monthly cadence, anchored on the 20th), so the tab **ignores the global period bar** (Weekly/Monthly/Quarterly/Yearly don't map onto a monthly budget) and carries its **own `‹ this period ›` stepper** over pay-period offsets — same way Wealth/Income already ignore the bar. Default = current in-progress period; step back to review past periods' outcomes.
+
+**Auto-estimate (core).** Per spend category, budget = **median of that category's total spend across the last 6 completed pay periods** (skip the current in-progress one). Reuses the `aggregate(payPeriod(i))` loop already in `catDetail()` (`i = 1..6`).
+- **Count £0 for absent categories** — a category present in 3 of 6 periods gives `[0,0,0,x,y,z]`, not `[x,y,z]`. Omitting zeros inflates every budget; including them makes the budget reflect a *typical* month. (Most important correctness choice.)
+- **Median not mean** — resists one-off spikes; for near-constant fixed categories median ≈ the recurring amount anyway.
+- Thin history → use as many completed periods as exist (min 1); under 2 → "set targets manually" empty state. Round to nearest **£5**.
+- **Category set shown** = *(categories with any history)* ∪ *(this period's categories)* so occasional/quarterly bills still appear with their budget.
+- Computed once per data load in a `computeBudgets()` helper → `{name → {auto, target}}` where `target = override ?? auto` (independent of which period is being viewed).
+
+**Overrides.** Per-category typed target → `Store('budgetTargets')[name]`; ghost hint shows `auto £x`; **↺ reset** removes the key (→ back to auto). Stored key present (incl. explicit £0) = override in use; cleared = auto. **Add `'budgetTargets'` to `Store.SYNC_KEYS`** (KV table already holds arbitrary keys — no schema change).
+
+**Surfaced view.**
+- **Safe-to-spend headline:** `(Est. income − Σ fixed commitments − Σ variable budget remaining) / days_left` → "£X/day safe to spend · N days left". Variable remaining = Σ `max(budget − spent, 0)`; fixed commitments use `max(spent, budget)` so unpaid bills still reserve cash. Clamp ≥£0 (over-committed → "£0/day — over by £Z" in `--negative`). Past period → show that period's actual outcome, not a forward £/day.
+- **KPI strip:** Total budgeted · Spent so far · Projected end-of-period · Left to budget vs **Est. income** (`LAST_INCOME.grandTotal`) → light zero-based feel.
+- **Total progress bar** with a **pace marker** (vertical tick at `elapsed_fraction × budget` = "where you should be today") + days left.
+- **Fixed & Variable grouped sections** (reuse `classOf()`, mirrors the Categories donuts): per-row icon · `£spent / £budget` · progress bar (under `--positive`, ≥85% `--accent`, over `--negative`, capped fill + overflow shown) · pace tick · override input · subtotal per section.
+- **Unbudgeted callout:** category with spend this period but no history/budget → "new — set a budget?".
+
+**Run-rate forecast (subtle).** Naïve `spent/elapsed` breaks on fixed (rent on day 1 → projects rent×15). So: **variable** → `spent / elapsed_fraction` (clamped; suppressed while `elapsed < ~10%`); **fixed** → `max(spent, budget)`. Total projected = Σ per-category projections. `elapsed_fraction = clamp((now−start)/(end−start),0,1)`.
+
+**Cross-tab flags (§8b ask).** `buildLiveView()/buildMockView()` attach `budget` + `overUnder` per cat (from `computeBudgets()`); `renderCatGrid()/renderCatRows()` show a `£20 under` / `£35 over` badge — **only when the global bar is on Pay Period (or Monthly)** (monthly budget vs a week's spend would mislead).
+
+**Mock parity.** `buildMockView` computes medians from `HIST_MOCK` (already 6 months/category) → fully working offline; this is how the tab is verified in-browser.
+
+**New functions:** `computeBudgets()`, `budgetPeriodState(offset)`, `renderBudget()`, `saveBudgetTarget()/resetBudgetTarget()`; budget data attached in the view builders; flags in the two cat renderers.
+
+**Edge cases:** thin/no history · new categories · disappeared categories (0% bar, budget kept) · transfers excluded (via `aggregate`) · income categories ignored · elapsed→0 suppression · explicit £0 vs blank · mobile numeric inputs.
 
 ### 8c. Investments — now part of the Wealth tab (§4)
 - **Model:** `HOLDINGS[account] = [{ticker, name, symbol, priceMode, units, avgCost, lastPrice, currency}]`. `lastPrice` is always **GBP**; `accountValue()` = Σ(units × lastPrice) → net worth.
@@ -139,15 +164,17 @@ Connect Google → SheetsAPI.fetchData()
 **OAuth origin:** ✅ confirmed working on the hosted site — no action needed.
 **Supabase cross-device sync (§8a):** ✅ **done & verified 2026-06-14** — merged (PR #6) + a 403-scope re-auth hardening follow-up. No outstanding setup. (Architecture recap lives in §8a + §1.)
 
-### Next build — Budget estimator tab (§8b)
+### In progress — Budget estimator tab (§8b)
 
-The clear next task. Design (from §8b, expanded):
-- **Auto-estimate per category = median of the last 3–6 pay periods.** Reuse `aggregate(start,end)` across `payPeriod(offset)` for offsets 1..N (skip the current in-progress period); take the median of each category's spend so one-off spikes don't distort the budget. Needs Emma connected; **keep a mock-data version working** (compute medians over the mock periods) so the tab verifies offline.
-- **Overrides:** a typed target per category, persisted via `Store('budgetTargets')` (auto-synced cross-device now — it's an app-owned key; add `'budgetTargets'` to `Store.SYNC_KEYS`). No override → use the auto-estimate.
-- **Surface it:** progress bars (spent vs budget) per category, total budget vs total spend, and a **run-rate forecast** = `spend_so_far / fraction_of_period_elapsed` projected to period end. Add over/under-budget flags onto the existing Categories cards.
-- **Fit the patterns:** new tab in the existing nav; periods via `rangeFor()`/`payPeriod()` (anchored on the 20th); derived numbers go into the `buildLiveView()/buildMockView()` builders, not ad-hoc in renderers; reuse `classOf()` for fixed/variable grouping if useful.
+Full canonical design now lives in **§8b** (expanded 2026-06-14). **v1 scope (agreed):** Core + **Safe-to-spend headline** — own pay-period stepper, median auto-budgets (zeros counted, last 6 periods), overrides (`budgetTargets` → `SYNC_KEYS`), Fixed/Variable rows with progress bars + pace marker, run-rate forecast (variable-only extrapolation), total-vs-income KPI strip, safe-to-spend headline, over/under flags on the Categories cards, full mock parity via `HIST_MOCK`.
 
-**Implementation note for the new build:** `budgetTargets` will sync automatically once added to `SYNC_KEYS` — no schema change needed (KV table already holds arbitrary keys).
+**Fit the patterns:** new tab in the nav; periods via `payPeriod()` (anchored on the 20th); derived numbers go into `buildLiveView()/buildMockView()`, not ad-hoc in renderers; reuse `classOf()` for fixed/variable grouping; `budgetTargets` syncs once added to `SYNC_KEYS` (no schema change).
+
+### Roadmap after Budget (agreed order)
+1. **Insights strip** — rules engine over `VIEW` + budgets (templated plain-English: over/under, on-track-to-save, spike-vs-median). Cheap once budgets exist.
+2. **Net worth over time** — auto-snapshot `netWorthTotal()` once per pay period into a synced Store key → trend line + monthly delta on Wealth. The one structural add (gives the snapshot-only app history).
+3. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
+4. **Upcoming bills calendar** — project next ~30 days from `detectRecurring()`'s day-of-month; pairs with safe-to-spend.
 
 ---
 

@@ -837,7 +837,82 @@
             .cat-kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
             .ckpi { padding: 12px 10px; }
             .ckpi-val { font-size: 16px; letter-spacing: -0.3px; }
+            .bgt-row { grid-template-columns: 26px 1fr auto; }
+            .bgt-row .bgt-inp-wrap { grid-column: 2 / 4; justify-self: end; }
+            .bgt-kpis { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* ─── BUDGET TAB ──────────────────────────── */
+        .bgt-stepper { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+        .bgt-step {
+            width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--card); color: var(--muted); font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .bgt-step:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+        .bgt-step:disabled { opacity: 0.35; cursor: default; }
+        .bgt-period { font-size: 13px; font-weight: 600; }
+        .bgt-period small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+
+        .bgt-safe {
+            background: var(--sidebar); color: #fff; border-radius: 14px;
+            padding: 22px 24px; margin-bottom: 14px;
+            display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+        }
+        .bgt-safe-l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: rgba(255,255,255,0.6); }
+        .bgt-safe-v { font-size: 34px; font-weight: 700; letter-spacing: -1.2px; color: var(--accent); line-height: 1.1; margin-top: 6px; }
+        .bgt-safe-sub { font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 6px; }
+        .bgt-safe.over .bgt-safe-v { color: #E8A99B; }
+
+        .bgt-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+        .bgt-kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+        .bgt-kpi-l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+        .bgt-kpi-v { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-top: 6px; }
+        .bgt-kpi-sub { font-size: 11px; margin-top: 3px; color: var(--muted); }
+
+        .bgt-total-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+        .bgt-total-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+        .bgt-total-top b { font-size: 15px; }
+        .bgt-total-days { font-size: 11px; color: var(--muted); }
+
+        .bgt-sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin: 18px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+        .bgt-sec-title span:last-child { color: var(--text); }
+
+        .bgt-row {
+            display: grid; grid-template-columns: 30px 1fr 132px 96px; align-items: center; gap: 12px;
+            background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 16px; margin-bottom: 7px;
+        }
+        .bgt-icon { font-size: 17px; }
+        .bgt-name { font-size: 13px; font-weight: 600; }
+        .bgt-proj { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .bgt-fig { text-align: right; font-size: 12px; }
+        .bgt-fig b { font-size: 13px; }
+        .bgt-fig .ou { font-weight: 700; }
+        .ou.under { color: var(--positive); }
+        .ou.over { color: var(--negative); }
+
+        .bgt-bar { position: relative; height: 7px; border-radius: 4px; background: var(--border); margin-top: 7px; overflow: visible; }
+        .bgt-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; transition: width 0.3s; }
+        .bgt-bar-fill.under { background: var(--positive); }
+        .bgt-bar-fill.near  { background: var(--accent); }
+        .bgt-bar-fill.over  { background: var(--negative); }
+        .bgt-pace { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: 0.5; border-radius: 2px; }
+
+        .bgt-inp-wrap { position: relative; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+        .bgt-inp {
+            width: 74px; border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px 6px 16px;
+            font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text); text-align: right; background: var(--bg);
+        }
+        .bgt-inp-wrap::before { content: '£'; position: absolute; left: 8px; font-size: 12px; color: var(--muted); pointer-events: none; }
+        .bgt-inp.ov { border-color: var(--accent); background: rgba(212,166,154,0.08); }
+        .bgt-reset { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px; }
+        .bgt-reset:hover { color: var(--text); }
+        .bgt-auto { font-size: 10px; color: var(--muted); text-align: right; margin-top: 3px; }
+
+        .ckpi-budget { font-size: 11px; font-weight: 700; margin-top: 5px; }
+        .ckpi-budget.under { color: var(--positive); }
+        .ckpi-budget.over { color: var(--negative); }
     </style>
 </head>
 <body>
@@ -855,6 +930,10 @@
     <div class="nav-item" onclick="switchTab('categories',this)">
         <span class="nav-icon">◉</span>
         <span>Categories</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('budget',this)">
+        <span class="nav-icon">▦</span>
+        <span>Budget</span>
     </div>
     <div class="nav-item" onclick="switchTab('wealth',this)">
         <span class="nav-icon">◆</span>
@@ -1270,6 +1349,49 @@
     </div>
 </div>
 
+<!-- ══════════════════════════════ TAB: BUDGET ══ -->
+<div class="page" id="tab-budget">
+    <p class="page-meta">Auto-budget = median of your last 6 pay periods · edit any target to override</p>
+
+    <div class="bgt-stepper">
+        <button class="bgt-step" id="bgt-prev" onclick="budgetStep(1)">‹</button>
+        <button class="bgt-step" id="bgt-next" onclick="budgetStep(-1)">›</button>
+        <div class="bgt-period" id="bgt-period">—</div>
+    </div>
+
+    <div class="bgt-safe" id="bgt-safe">
+        <div>
+            <div class="bgt-safe-l">Safe to spend</div>
+            <div class="bgt-safe-v" id="bgt-safe-v">—</div>
+            <div class="bgt-safe-sub" id="bgt-safe-sub">—</div>
+        </div>
+    </div>
+
+    <div class="bgt-kpis">
+        <div class="bgt-kpi"><div class="bgt-kpi-l">Total budgeted</div><div class="bgt-kpi-v" id="bgt-k-budget">—</div></div>
+        <div class="bgt-kpi"><div class="bgt-kpi-l">Spent so far</div><div class="bgt-kpi-v" id="bgt-k-spent">—</div><div class="bgt-kpi-sub" id="bgt-k-spent-sub">—</div></div>
+        <div class="bgt-kpi"><div class="bgt-kpi-l">Projected</div><div class="bgt-kpi-v" id="bgt-k-proj">—</div><div class="bgt-kpi-sub" id="bgt-k-proj-sub">—</div></div>
+        <div class="bgt-kpi"><div class="bgt-kpi-l">Left to budget</div><div class="bgt-kpi-v" id="bgt-k-left">—</div><div class="bgt-kpi-sub" id="bgt-k-left-sub">vs est. income</div></div>
+    </div>
+
+    <div class="bgt-total-card">
+        <div class="bgt-total-top">
+            <b id="bgt-total-lbl">—</b>
+            <span class="bgt-total-days" id="bgt-total-days">—</span>
+        </div>
+        <div class="bgt-bar"><div class="bgt-bar-fill" id="bgt-total-fill"></div><div class="bgt-pace" id="bgt-total-pace"></div></div>
+    </div>
+
+    <div id="bgt-fixed-sec">
+        <div class="bgt-sec-title"><span>Fixed</span><span id="bgt-fixed-sub">—</span></div>
+        <div id="bgt-fixed-rows"></div>
+    </div>
+    <div id="bgt-var-sec">
+        <div class="bgt-sec-title"><span>Variable</span><span id="bgt-var-sub">—</span></div>
+        <div id="bgt-var-rows"></div>
+    </div>
+</div>
+
 </div><!-- /.main -->
 
 <!-- ═══════════════════════ ADD ACCOUNT MODAL ═══════ -->
@@ -1419,7 +1541,7 @@ const Store = {
     PREFIX: 'emmaDash:',
     // App-owned keys that sync cross-device via Supabase. Transient/device-local
     // keys (priceCache, googleToken) are deliberately excluded.
-    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs'],
+    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
@@ -2071,6 +2193,7 @@ const SheetsAPI = {
    ════════════════════════════════════════════════════ */
 function computeAndRender() {
     VIEW = CONNECTED ? buildLiveView() : buildMockView();
+    refreshBudgets();   // period-independent per-category targets (auto median + overrides)
     document.getElementById('period-display').textContent = VIEW.rangeLabel;
     renderOverview();
     renderCatRows();
@@ -2251,8 +2374,28 @@ function renderCatGrid(V) {
                 <span class="ckpi-last">last £${(c.prevAmt||0).toLocaleString()}</span>
                 <span class="ckpi-mom" style="color:${colour}">${arrow} ${Math.abs(c.momPct)}%</span>
             </div>
+            ${budgetBadge(c.name, c.amt)}
         </div>`;
     }).join('') || '<div class="empty-state">No categories this period</div>';
+}
+
+/* Budget flags shared by Categories cards/rows — only meaningful when the
+   global period bar is on a monthly cadence (a monthly budget vs a week
+   would mislead). BUDGETS holds period-independent per-category targets. */
+function budgetFlagAllowed() { return CUR.mode === 'pay' || CUR.mode === 'monthly'; }
+function budgetBadge(name, spent) {
+    if (!budgetFlagAllowed()) return '';
+    const b = BUDGETS[name];
+    if (!b || !(b.target > 0)) return '';
+    const diff = Math.round(b.target - spent), over = diff < 0;
+    return `<div class="ckpi-budget ${over ? 'over' : 'under'}">${over ? '£' + Math.abs(diff).toLocaleString() + ' over' : '£' + diff.toLocaleString() + ' left'} of £${b.target.toLocaleString()}</div>`;
+}
+function budgetInline(name, spent) {
+    if (!budgetFlagAllowed()) return '';
+    const b = BUDGETS[name];
+    if (!b || !(b.target > 0)) return '';
+    const diff = Math.round(b.target - spent), over = diff < 0;
+    return ` · <span style="color:${over ? 'var(--negative)' : 'var(--positive)'};font-weight:700">${over ? '£' + Math.abs(diff).toLocaleString() + ' over' : '£' + diff.toLocaleString() + ' left'}</span>`;
 }
 
 function renderCatRows() {
@@ -2264,7 +2407,7 @@ function renderCatRows() {
             <div class="cat-icon">${c.icon}</div>
             <div class="cat-info">
                 <div class="cat-name">${c.name}</div>
-                <div class="cat-meta">${c.tx} transactions · ${c.pct}% of ${noun}</div>
+                <div class="cat-meta">${c.tx} transactions · ${c.pct}% of ${noun}${noun === 'spend' ? budgetInline(c.name, c.amt) : ''}</div>
             </div>
             <div class="cat-right">
                 <div class="cat-amt">£${c.amt.toLocaleString()}</div>
@@ -2361,12 +2504,196 @@ function setPrevN(n) {
 document.addEventListener('click', e => { if (!e.target.closest('.prev-wrap')) closePrev(); });
 
 /* ── TAB SWITCHING ─────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   BUDGET ESTIMATOR
+   Auto target = median of a category's spend over the last
+   6 completed pay periods (zeros counted for absent months);
+   override per category persists to Store('budgetTargets').
+   Budget is a per-pay-period figure, so this tab uses its own
+   stepper and ignores the global period bar.
+   ════════════════════════════════════════════════════ */
+let BUDGET_OFFSET  = 0;                        // which pay period (0 = current)
+let BUDGETS        = {};                        // {name: {auto, target, overridden}}
+let BUDGET_TARGETS = Store.get('budgetTargets', {});
+
+function median(arr) {
+    if (!arr.length) return 0;
+    const s = [...arr].sort((a, b) => a - b), m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+const roundTo5 = x => Math.round(x / 5) * 5;
+
+// Spend per category for one pay period (offset 0 = current).
+// Live → aggregate RAW_TX; mock → the matching HIST_MOCK column.
+function periodSpendMap(offset) {
+    const out = {};
+    if (!CONNECTED) {
+        const idx = HIST_MOCK.labels.length - 1 - offset;
+        if (idx < 0) return out;
+        for (const k in HIST_MOCK) { if (k === 'labels') continue; if (HIST_MOCK[k][idx] != null) out[k] = HIST_MOCK[k][idx]; }
+        return out;
+    }
+    const p = payPeriod(offset);
+    aggregate(p.start, p.end).catList.forEach(c => out[c.name] = Math.round(c.amt));
+    return out;
+}
+
+// Period-independent per-category targets (median of last 6 completed periods +
+// any override). Recomputed on data load and after every override edit.
+function computeBudgets() {
+    const maps = [];
+    for (let i = 1; i <= 6; i++) { const m = periodSpendMap(i); if (Object.keys(m).length) maps.push(m); }
+    const names = new Set();
+    maps.forEach(m => Object.keys(m).forEach(n => names.add(n)));
+    Object.keys(periodSpendMap(BUDGET_OFFSET)).forEach(n => names.add(n)); // include current-period cats
+    const out = {};
+    names.forEach(name => {
+        const auto = roundTo5(median(maps.map(m => m[name] || 0)));   // zeros for absent months
+        const ov = BUDGET_TARGETS[name];
+        out[name] = { auto, target: (ov != null ? ov : auto), overridden: ov != null };
+    });
+    return out;
+}
+function refreshBudgets() { BUDGETS = computeBudgets(); }
+
+function budgetMaxOffset() { return CONNECTED ? 11 : HIST_MOCK.labels.length - 1; }
+function budgetStep(d) {
+    BUDGET_OFFSET = Math.max(0, Math.min(budgetMaxOffset(), BUDGET_OFFSET + d));
+    renderBudget();
+}
+function saveBudgetTarget(name, val) {
+    const v = parseFloat(val);
+    if (isNaN(v)) delete BUDGET_TARGETS[name];
+    else BUDGET_TARGETS[name] = Math.max(0, Math.round(v));
+    Store.set('budgetTargets', BUDGET_TARGETS);
+    refreshBudgets(); renderBudget();
+    renderCatGrid(VIEW); renderCatRows();   // refresh cross-tab flags
+}
+function resetBudgetTarget(name) {
+    delete BUDGET_TARGETS[name];
+    Store.set('budgetTargets', BUDGET_TARGETS);
+    refreshBudgets(); renderBudget();
+    renderCatGrid(VIEW); renderCatRows();
+}
+
+function renderBudget() {
+    refreshBudgets();
+    const p = payPeriod(BUDGET_OFFSET), now = new Date();
+    const elapsed = Math.max(0, Math.min(1, (now - p.start) / (p.end - p.start)));
+    const isCurrent = BUDGET_OFFSET === 0 && now <= p.end;
+    const daysLeft = isCurrent ? Math.max(0, Math.ceil((p.end - now) / 864e5)) : 0;
+
+    document.getElementById('bgt-period').innerHTML =
+        `${fmtRange(p.start, p.end)}<small>${isCurrent ? `pay period · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'completed pay period'}</small>`;
+    document.getElementById('bgt-next').disabled = BUDGET_OFFSET === 0;
+    document.getElementById('bgt-prev').disabled = BUDGET_OFFSET >= budgetMaxOffset();
+
+    const spentMap = periodSpendMap(BUDGET_OFFSET);
+    const names = new Set([...Object.keys(BUDGETS), ...Object.keys(spentMap)]);
+    const rows = [];
+    names.forEach(name => {
+        const b = BUDGETS[name] || { auto: 0, target: 0, overridden: false };
+        const spent = Math.round(spentMap[name] || 0);
+        if (b.target <= 0 && spent <= 0) return;
+        const fixed = classOf(name) === 'fixed';
+        let projected;
+        if (fixed) projected = Math.max(spent, b.target);                        // committed bills still land
+        else if (isCurrent) projected = elapsed < 0.1 ? null : Math.round(spent / Math.max(elapsed, 0.01));
+        else projected = spent;
+        rows.push({ name, target: b.target, spent, fixed, projected, auto: b.auto, overridden: b.overridden });
+    });
+    const fixedRows = rows.filter(r => r.fixed).sort((a, b) => b.target - a.target);
+    const varRows   = rows.filter(r => !r.fixed).sort((a, b) => b.target - a.target);
+
+    const totalBudget = rows.reduce((s, r) => s + r.target, 0);
+    const totalSpent  = rows.reduce((s, r) => s + r.spent, 0);
+    const totalProj   = rows.reduce((s, r) => s + (r.projected == null ? r.spent : r.projected), 0);
+
+    // Safe-to-spend: est income − fixed commitments − unspent variable budget.
+    const estIncome    = (LAST_INCOME && LAST_INCOME.grandTotal) ? Math.round(LAST_INCOME.grandTotal) : (VIEW ? VIEW.totalIncome : 0);
+    const fixedCommit  = fixedRows.reduce((s, r) => s + Math.max(r.spent, r.target), 0);
+    const varRemaining = varRows.reduce((s, r) => s + Math.max(r.target - r.spent, 0), 0);
+    const safePot      = estIncome - fixedCommit - varRemaining;
+    const safeEl = document.getElementById('bgt-safe');
+    if (!isCurrent) {
+        const out = totalBudget - totalSpent;
+        safeEl.classList.toggle('over', out < 0);
+        document.getElementById('bgt-safe-v').textContent = (out < 0 ? '−£' : '£') + Math.abs(out).toLocaleString();
+        document.getElementById('bgt-safe-sub').textContent = out < 0 ? 'over budget this period' : 'under budget this period';
+    } else if (safePot < 0) {
+        safeEl.classList.add('over');
+        document.getElementById('bgt-safe-v').textContent = '£0/day';
+        document.getElementById('bgt-safe-sub').textContent = `over-committed by £${Math.abs(Math.round(safePot)).toLocaleString()} vs est. income`;
+    } else {
+        safeEl.classList.remove('over');
+        const perDay = daysLeft > 0 ? safePot / daysLeft : safePot;
+        document.getElementById('bgt-safe-v').textContent = '£' + Math.round(perDay).toLocaleString() + '/day';
+        document.getElementById('bgt-safe-sub').textContent = `£${Math.round(safePot).toLocaleString()} free over ${daysLeft} day${daysLeft === 1 ? '' : 's'} · after fixed + planned variable`;
+    }
+
+    document.getElementById('bgt-k-budget').textContent = '£' + totalBudget.toLocaleString();
+    document.getElementById('bgt-k-spent').textContent  = '£' + totalSpent.toLocaleString();
+    document.getElementById('bgt-k-spent-sub').textContent = totalBudget ? Math.round(totalSpent / totalBudget * 100) + '% of budget' : '—';
+    document.getElementById('bgt-k-proj').textContent   = '£' + Math.round(totalProj).toLocaleString();
+    const projDiff = totalBudget - totalProj;
+    document.getElementById('bgt-k-proj-sub').innerHTML = isCurrent
+        ? `<span style="color:${projDiff >= 0 ? 'var(--positive)' : 'var(--negative)'}">${projDiff >= 0 ? '£' + Math.round(projDiff).toLocaleString() + ' under' : '£' + Math.abs(Math.round(projDiff)).toLocaleString() + ' over'}</span>`
+        : 'actual';
+    const left = estIncome - totalBudget;
+    document.getElementById('bgt-k-left').textContent = (left < 0 ? '−£' : '£') + Math.abs(left).toLocaleString();
+    document.getElementById('bgt-k-left-sub').textContent = `est. income £${estIncome.toLocaleString()}`;
+
+    const tpct = totalBudget ? totalSpent / totalBudget * 100 : 0;
+    const tfill = document.getElementById('bgt-total-fill');
+    tfill.style.width = Math.min(100, tpct) + '%';
+    tfill.className = 'bgt-bar-fill ' + (tpct > 100 ? 'over' : tpct >= 85 ? 'near' : 'under');
+    const pace = document.getElementById('bgt-total-pace');
+    pace.style.left = (isCurrent ? elapsed * 100 : 100) + '%';
+    pace.style.display = isCurrent ? 'block' : 'none';
+    document.getElementById('bgt-total-lbl').textContent = `£${totalSpent.toLocaleString()} of £${totalBudget.toLocaleString()} budget`;
+    document.getElementById('bgt-total-days').textContent = isCurrent ? `${Math.round(elapsed * 100)}% through period` : 'final';
+
+    const renderRows = list => list.map(r => {
+        const pct = r.target ? r.spent / r.target * 100 : (r.spent > 0 ? 100 : 0);
+        const cls = pct > 100 ? 'over' : pct >= 85 ? 'near' : 'under';
+        const diff = Math.round(r.target - r.spent), over = diff < 0;
+        const esc = r.name.replace(/'/g, "\\'");
+        const projTxt = r.projected == null ? '' : `<div class="bgt-proj">proj. £${Math.round(r.projected).toLocaleString()}</div>`;
+        return `<div class="bgt-row">
+            <div class="bgt-icon">${iconFor(r.name)}</div>
+            <div>
+                <div class="bgt-name">${r.name}</div>
+                <div class="bgt-bar"><div class="bgt-bar-fill ${cls}" style="width:${Math.min(100, pct)}%"></div>${isCurrent ? `<div class="bgt-pace" style="left:${Math.min(100, elapsed * 100)}%"></div>` : ''}</div>
+            </div>
+            <div class="bgt-fig">
+                <b>£${r.spent.toLocaleString()}</b> / £${r.target.toLocaleString()}
+                <div class="ou ${over ? 'over' : 'under'}">${over ? '£' + Math.abs(diff).toLocaleString() + ' over' : '£' + diff.toLocaleString() + ' left'}</div>
+                ${projTxt}
+            </div>
+            <div>
+                <div class="bgt-inp-wrap">
+                    <input class="bgt-inp ${r.overridden ? 'ov' : ''}" type="number" inputmode="numeric" value="${r.target}" onchange="saveBudgetTarget('${esc}', this.value)">
+                    ${r.overridden ? `<button class="bgt-reset" title="Reset to auto" onclick="resetBudgetTarget('${esc}')">↺</button>` : ''}
+                </div>
+                <div class="bgt-auto">auto £${r.auto.toLocaleString()}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('bgt-fixed-rows').innerHTML = fixedRows.length ? renderRows(fixedRows) : '<div class="empty-state">No fixed categories yet</div>';
+    document.getElementById('bgt-var-rows').innerHTML   = varRows.length ? renderRows(varRows) : '<div class="empty-state">No variable categories yet</div>';
+    const sub = rs => { const b = rs.reduce((s, r) => s + r.target, 0), sp = rs.reduce((s, r) => s + r.spent, 0); return `£${sp.toLocaleString()} / £${b.toLocaleString()}`; };
+    document.getElementById('bgt-fixed-sub').textContent = sub(fixedRows);
+    document.getElementById('bgt-var-sub').textContent   = sub(varRows);
+}
+
 function switchTab(name, el) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     el.classList.add('active');
     if (name === 'wealth') { renderWealth(); Prices.refresh(false); }  // render + pull live prices if stale
+    if (name === 'budget') renderBudget();
 }
 function setToggle(mode, el) {
     document.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
