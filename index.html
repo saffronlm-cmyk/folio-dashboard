@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --bg:       #FAF7F5;
@@ -1618,19 +1619,14 @@ const Sync = {
             auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
         });
 
-        // Reuse a still-valid Google token (survives reloads within ~1h) so live
-        // Sheets data reloads without re-tapping Connect.
-        const gt = Store.get('googleToken', null);
-        if (gt && gt.token && Date.now() < gt.exp) SheetsAPI.useToken(gt.token);
-
+        // NOTE: the Google Sheets read token is NOT sourced from Supabase. Supabase
+        // only exposes provider_token once (on the OAuth callback) and never on a
+        // reload or its own token refresh, so live data silently lapsed after ~1h.
+        // GAuth (Google Identity Services) now owns the Sheets token — it can renew
+        // it silently — while Sync stays purely for cross-device KV sync below.
         this.client.auth.onAuthStateChange((event, session) => {
             this.session = session;
             if (!session) return;
-            // A fresh OAuth callback carries the Google access token; persist it.
-            if (session.provider_token) {
-                Store.set('googleToken', { token: session.provider_token, exp: Date.now() + 55 * 60 * 1000 });
-                SheetsAPI.useToken(session.provider_token);
-            }
             this.hydrateAndMigrate();
         });
 
@@ -2120,20 +2116,66 @@ function catDetail(name) {
 }
 
 /* ════════════════════════════════════════════════════
+   GAUTH — Google Identity Services token client
+   ----------------------------------------------------
+   Source of truth for the Sheets read token. Uses CLIENT_ID
+   only (no secret, so this is the only way to mint Sheets
+   tokens client-side). Unlike Supabase's provider_token,
+   GIS can RENEW the token silently (prompt:'') whenever the
+   user has an active Google session and has granted the
+   scope before — so live data survives reloads and hourly
+   token expiry without re-tapping Connect.
+   ════════════════════════════════════════════════════ */
+const GAuth = {
+    tokenClient: null,
+    _mode: 'load',   // 'load' (silent on boot) | 'renew' (silent after 401) | 'connect' (interactive)
+
+    init() {
+        if (!(window.google && google.accounts && google.accounts.oauth2)) {
+            setTimeout(() => this.init(), 200); return;
+        }
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CONFIG.CLIENT_ID,
+            scope: CONFIG.SCOPES,
+            callback: (resp) => {
+                if (resp && resp.access_token) { SheetsAPI.useToken(resp.access_token); return; }
+                // Token request returned without a token (e.g. silent renew with no
+                // valid grant). 'renew' means a live session lapsed → prompt reconnect;
+                // a boot/connect miss just leaves the friendly default (mock) state.
+                SheetsAPI.status(this._mode === 'renew' ? 'expired' : 'idle');
+            },
+            // Popup closed/blocked, or silent attempt needs interaction.
+            error_callback: () => { SheetsAPI.status(this._mode === 'renew' ? 'expired' : 'idle'); },
+        });
+        // Silent restore on boot: if the Sheets scope was granted before and a
+        // Google session is active, this returns a token with no popup → live data
+        // reloads automatically. Otherwise we stay on mock until Connect is tapped.
+        this.request(false, 'load');
+    },
+
+    // interactive=true → consent popup (must be a user gesture).
+    // interactive=false → silent renewal (no UI when a prior grant exists).
+    request(interactive, mode) {
+        this._mode = mode || (interactive ? 'connect' : 'load');
+        if (!this.tokenClient) { setTimeout(() => this.request(interactive, this._mode), 200); return; }
+        this.tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+    },
+};
+
+/* ════════════════════════════════════════════════════
    GOOGLE SHEETS API
    ════════════════════════════════════════════════════ */
 const SheetsAPI = {
     accessToken: null,
+    _renewed: false,   // guards against a renew→401→renew loop within one fetch cycle
 
-    // Called by Sync once a Google access token is available (fresh OAuth callback
-    // or a still-valid persisted token) → load live Sheets data.
+    // Called by GAuth once a Google access token is available → load live Sheets data.
     useToken(token) { this.accessToken = token; this.fetchData(); },
 
-    // The Connect / Refresh button. One Google login via Supabase OAuth covers
-    // both identity (data sync) and the Sheets read token.
+    // The Connect / Refresh button. GAuth (GIS) supplies the Sheets read token.
     signIn() {
         if (this.accessToken) { this.fetchData(); return; }  // already authed → just refresh
-        Sync.signIn();
+        GAuth.request(true);                                  // interactive Google consent popup
     },
 
     async fetchData() {
@@ -2145,14 +2187,21 @@ const SheetsAPI = {
             if (!resp.ok) {
                 let detail = '';
                 try { const e = await resp.json(); detail = e.error?.message || ''; } catch (_) {}
-                // Token-level problems → ditch the token and prompt a fresh Google
-                // consent. 401 = expired/revoked; 403 "insufficient scopes" = signed
-                // in without granting the Sheets permission. Re-tapping Connect runs
-                // OAuth again (prompt:consent) so the Sheets scope can be granted.
-                if (resp.status === 401 || (resp.status === 403 && /scope/i.test(detail))) {
+                // Token-level problems → drop the token and try to recover.
+                // 401 = expired/revoked: attempt one silent GIS renewal (no popup)
+                // before asking the user to reconnect. 403 "insufficient scopes" =
+                // granted login without the Sheets permission → re-tap Connect runs
+                // consent (prompt:consent) so the Sheets scope can be added.
+                if (resp.status === 401) {
                     this.accessToken = null;
-                    Store.remove('googleToken');
-                    this.status(resp.status === 401 ? 'expired' : 'scope');
+                    if (!this._renewed) { this._renewed = true; GAuth.request(false, 'renew'); return; }
+                    this._renewed = false;
+                    this.status('expired');
+                    return;
+                }
+                if (resp.status === 403 && /scope/i.test(detail)) {
+                    this.accessToken = null;
+                    this.status('scope');
                     return;
                 }
                 throw new Error(detail || 'Fetch failed');
@@ -2160,6 +2209,7 @@ const SheetsAPI = {
             const data = await resp.json();
             this.parse(data.values || []);
             CONNECTED = true;
+            this._renewed = false;
             this.status('connected');
             computeAndRender();
         } catch (err) {
@@ -3603,7 +3653,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('target-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     document.getElementById('target-month').addEventListener('change', updateTargetNote);
     updateTargetNote();
-    Sync.init();          // Supabase: restore session, single Google login, cross-device sync
+    Sync.init();          // Supabase: restore session + cross-device KV sync
+    GAuth.init();         // Google Identity Services: Sheets read token (silent restore + renewal)
 });
 </script>
 </body>
