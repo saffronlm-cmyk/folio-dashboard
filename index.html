@@ -1873,11 +1873,28 @@ function iconFor(name) {
    ════════════════════════════════════════════════════ */
 function payPeriod(offset = 0) {
     const now = new Date();
-    let startM = (now.getDate() >= 20) ? now.getMonth() : now.getMonth() - 1;
-    startM -= offset;
-    const start = new Date(now.getFullYear(), startM, 20, 0, 0, 0, 0);
-    const end   = new Date(now.getFullYear(), startM + 1, 19, 23, 59, 59, 999);
+    // Base month = the calendar month whose payday opens the period containing
+    // `now`. If we're before this month's payday, we're still in the prior period.
+    let y = now.getFullYear(), m = now.getMonth();
+    if (now < payAnchor(y, m)) m -= 1;
+    m -= offset;
+    const start = payAnchor(y, m);
+    const end   = payAnchor(y, m + 1);   // next payday opens the next period…
+    end.setDate(end.getDate() - 1);      // …so this one ends the day before it.
+    end.setHours(23, 59, 59, 999);
     return { start, end };
+}
+// Payday is the 20th, but when the 20th lands on a weekend it's paid the
+// preceding Friday (e.g. Sat 20 Jun 2026 → Fri 19 Jun). The pay period is
+// anchored on the actual payday so an early salary opens the new period rather
+// than spilling into the previous one. (year/month may be out of range — the
+// Date constructor normalises month/year wrap.)
+function payAnchor(year, month) {
+    const d = new Date(year, month, 20, 0, 0, 0, 0);
+    const dow = d.getDay();                 // 0 = Sun, 6 = Sat
+    if (dow === 6) d.setDate(19);           // Saturday → Friday the 19th
+    else if (dow === 0) d.setDate(18);      // Sunday   → Friday the 18th
+    return d;
 }
 function startOfWeek(d) {
     const x = new Date(d);
