@@ -94,7 +94,7 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 6. Decisions log
 
-- **DA pay:** `shifts × day rate`. Day rate is an **editable input pre-filled at £266.60** (derived from "5 shifts = £1,333"). **Verify against the next payslip** — it's higher than the £200 originally guessed.
+- **DA pay (updated 2026-07-23):** pro-rata salary, `annual salary × (days/week ÷ 5)`. Replaced the old `shifts × day rate` model after a payroll clarification: DA is a £40,000 FTE (5-day) salary, paid as `40,000 × days/5 ÷ 12` per month — **£1,333.33/mo at 2 days/week** (May–Jun 2026), **£2,000/mo at 3 days/week** (Jul 2026 onward, Saffron's current schedule). Both figures confirmed against real payslips. Inputs: `da-salary` (£40,000, editable) and `da-days` (editable, only ever goes up).
 - **Pension:** net-pay arrangement. Income tax on `gross − pension`; **NI on full gross**; pension = **5% of qualifying earnings** (`gross − £6,240/yr`). Editable %.
 - **FOH:** entered as **hours/month** (from the rota planner), not per week.
 - **Savings withdrawals** (e.g. funding a holiday): re-tag as **`Transfer` in Emma** → auto-excluded from income; the purchase still counts as spend.
@@ -109,6 +109,7 @@ Connect Google → SheetsAPI.fetchData()
 - Console **"A listener indicated an asynchronous response… message channel closed"** errors are from a **browser extension**, not this app. Ignore them.
 - Chart.js donuts need a **visible container on first paint**; they render fine after a tab switch (the container gains size). Not a bug.
 - Income estimator inputs are now persisted via `Store` (`incomeInputs`) — they survive reloads. Accounts (`accounts`), targets (`incomeTargets`), and category classes (`categoryClass`) are likewise persisted.
+- **Payroll error (May–Jul 2026), reflected in `PAYSLIPS`:** off-desk hours were double-paid on top of the DA salary for the Apr–May and May–Jun FOH windows (overpaid £196.70 and £915.36); this is being repaid via a 3-month `-£370.69/mo` "Salary Adjustment" line starting on the Jul 2026 payslip. The `PAYSLIPS` log entries for 'May 2026', 'Jun 2026', and 'Jul 2026' use the **true FOH hours × £14.05 + real commission**, not the amounts actually paid/received — logging the raw over/under-paid figures would skew the holiday-pay effective-rate average. If an Aug/Sep 2026 payslip still shows the `-£370.69` adjustment, log that payslip's normal hours × rate too and ignore the adjustment line the same way.
 
 ---
 
