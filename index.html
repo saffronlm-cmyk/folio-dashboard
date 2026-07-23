@@ -1242,16 +1242,16 @@
         </div>
         <div class="role-card">
             <div class="role-title">Data Analyst</div>
-            <div class="role-sub">ONE LDN · Day rate</div>
+            <div class="role-sub">ONE LDN · Pro-rata salary</div>
             <div class="fg">
-                <label class="fl">Day rate <span style="color:var(--accent);text-transform:none;letter-spacing:0">(check vs payslip)</span></label>
+                <label class="fl">Annual salary <span style="color:var(--accent);text-transform:none;letter-spacing:0">(full-time, 5 days)</span></label>
                 <div class="pfx"><span class="pfx-sym">£</span>
-                    <input class="fi" type="number" id="da-rate" value="266.60" step="0.01" oninput="recalc()">
+                    <input class="fi" type="number" id="da-salary" value="40000" step="100" oninput="recalc()">
                 </div>
             </div>
             <div class="fg">
-                <label class="fl">Shifts / month</label>
-                <input class="fi" type="number" id="da-shifts" value="5" step="0.5" oninput="recalc()">
+                <label class="fl">Days / week</label>
+                <input class="fi" type="number" id="da-days" value="3" step="0.5" oninput="recalc()">
             </div>
             <div class="calc-box">
                 <div class="calc-row"><span>Monthly gross</span><span id="da-gross">—</span></div>
@@ -1764,8 +1764,14 @@ const INCOME_TX_MOCK = {
     'Interest':     [[17.00,'Chase Saver','31 May']],
 };
 
-/* Holiday-pay payslip data (Jun 2025 – May 2026), from Saffron's estimator.
-   Earnings = wages + bonus/commission; holiday pay received is excluded. */
+/* Holiday-pay payslip data (Jun 2025 – Jul 2026), from Saffron's estimator.
+   Earnings = wages + bonus/commission; holiday pay received is excluded.
+   May–Jul 2026 use true FOH hours × £14.05 rather than the amount actually
+   paid: a payroll error double-paid off-desk hours in the Apr–May and
+   May–Jun windows (corrected here to the real hours worked), and the Jul
+   payslip nets off a 3-month repayment of that overpayment via a separate
+   "Salary Adjustment" line — neither reflects normal pay for hours worked,
+   so both are excluded to keep the holiday-pay average representative. */
 const PAYSLIPS = [
     { label:'Jun 2025',   hours:170.48, wages:2591.30, extra:0      },
     { label:'Jul 2025',   hours:151.50, wages:2302.80, extra:0      },
@@ -1779,7 +1785,9 @@ const PAYSLIPS = [
     { label:'Feb 2026',   hours:50.00,  wages:702.50,  extra:120.00 },
     { label:'Mar 2026',   hours:136.75, wages:1921.34, extra:30.00  },
     { label:'Apr 2026',   hours:173.00, wages:2430.65, extra:30.00  },
-    { label:'May 2026',   hours:85.45,  wages:2533.90, extra:105.00 },
+    { label:'May 2026',   hours:71.45,  wages:1003.87, extra:105.00 },
+    { label:'Jun 2026',   hours:114.35, wages:1606.62, extra:0      },
+    { label:'Jul 2026',   hours:88.45,  wages:1242.72, extra:30.00  },
 ];
 
 /* App-owned data (persisted via Store) */
@@ -3507,8 +3515,8 @@ let LAST_INCOME = { gross:0, net:0, cash:0, grandTotal:0 };
 function recalc() {
     const fohRate   = parseFloat(document.getElementById('foh-rate').value) || 0;
     const fohHrs    = parseFloat(document.getElementById('foh-hrs').value)  || 0;
-    const daRate    = parseFloat(document.getElementById('da-rate').value)   || 0;
-    const daShifts  = parseFloat(document.getElementById('da-shifts').value) || 0;
+    const daSalary  = parseFloat(document.getElementById('da-salary').value) || 0;
+    const daDays    = parseFloat(document.getElementById('da-days').value)   || 0;
 
     // FOH — hourly, entered as hours per month (varies with shifts; taken from planner)
     const fohMon = fohRate * fohHrs;
@@ -3516,9 +3524,9 @@ function recalc() {
     document.getElementById('foh-gross').textContent  = fmt(fohMon);
     document.getElementById('foh-annual').textContent = fmt(fohAnn) + '/yr';
 
-    // DA — shifts × day rate (entered per month)
-    const daMon = daRate * daShifts;
-    const daAnn = daMon * 12;
+    // DA — pro-rata salary: annual FTE (5-day) salary × (days worked ÷ 5)
+    const daAnn = daSalary * (daDays / 5);
+    const daMon = daAnn / 12;
     document.getElementById('da-gross').textContent  = fmt(daMon);
     document.getElementById('da-annual').textContent = fmt(daAnn) + '/yr';
 
@@ -3559,7 +3567,7 @@ function recalc() {
 }
 
 /* Persist / restore the income estimator inputs (localStorage via Store) */
-const INCOME_INPUT_IDS = ['foh-rate','foh-hrs','da-rate','da-shifts','pension-pct','c-allow','c-vinted','c-events'];
+const INCOME_INPUT_IDS = ['foh-rate','foh-hrs','da-salary','da-days','pension-pct','c-allow','c-vinted','c-events'];
 function saveIncomeInputs() {
     const obj = {};
     INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
