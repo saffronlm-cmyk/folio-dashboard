@@ -1166,8 +1166,13 @@
                 </div>
             </div>
             <div class="fg">
+                <label class="fl">Contracted hours / week</label>
+                <input class="fi" type="number" id="job-contract" value="48" step="0.5" min="0" oninput="recalc()">
+            </div>
+            <div class="fg">
                 <label class="fl">Rota hours this pay period <span style="color:var(--accent);text-transform:none;letter-spacing:0" id="job-hrs-hint">(from rota)</span></label>
-                <input class="fi" type="number" id="job-hrs" value="140" step="0.25" oninput="recalc()">
+                <input class="fi" type="number" id="job-hrs" value="" step="0.25" oninput="recalc()">
+                <div style="font-size:11px;color:var(--muted);margin-top:5px" id="job-hrs-note"></div>
             </div>
             <div class="calc-box">
                 <div class="calc-row"><span>Effective rate</span><span id="job-eff">—</span></div>
@@ -3412,11 +3417,22 @@ const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function recalc() {
     const rate  = parseFloat(document.getElementById('job-rate').value)  || 0;
     const tronc = parseFloat(document.getElementById('job-tronc').value) || 0;
-    const hrs   = parseFloat(document.getElementById('job-hrs').value)   || 0;
+    const contract = parseFloat(document.getElementById('job-contract').value) || 0;
     const troncNIFree = document.getElementById('tronc-ni-free').checked;
 
     // Pay schedule — the window of rota hours the next payday covers
     const np = nextPayday();
+
+    // Rota hours: blank = contracted hrs/week × weeks in the window (4 or 5);
+    // type a number to override with the actual rota.
+    const contractHrs = contract * np.weeks;
+    const hrsEl  = document.getElementById('job-hrs');
+    const manual = hrsEl.value.trim() !== '';
+    const hrs    = manual ? (parseFloat(hrsEl.value) || 0) : contractHrs;
+    hrsEl.placeholder = contractHrs.toFixed(contractHrs % 1 ? 2 : 0);
+    document.getElementById('job-hrs-note').textContent = manual
+        ? `From your rota · contract would be ${contract} × ${np.weeks} wks = ${hrsEl.placeholder} hrs (clear to use it)`
+        : `Using contract: ${contract} hrs × ${np.weeks} wks · type your rota hours to override`;
     const dFmt = d => `${DOW[d.getDay()]} ${fmtDay(d)}`;
     document.getElementById('ps-payday').textContent = dFmt(np.payday);
     document.getElementById('ps-window').textContent = `${dFmt(np.start)} – ${dFmt(np.end)}`;
@@ -3477,10 +3493,12 @@ function recalc() {
 }
 
 /* Persist / restore the income estimator inputs (localStorage via Store).
-   v2 = the single hourly role (Oct 2026). Older saves hold the ONE LDN
-   FOH/DA inputs and a 5% pension, so only their cash fields carry over. */
-const INCOME_INPUTS_VERSION = 2;
-const INCOME_INPUT_IDS = ['job-rate','job-tronc','tronc-ni-free','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
+   v3 = contracted hrs/week drives rota hours unless overridden. v2 saves
+   (single hourly role) carry over except their auto-saved rota hours, so the
+   contract default takes effect. Older saves hold the ONE LDN FOH/DA inputs
+   and a 5% pension, so only their cash fields carry over. */
+const INCOME_INPUTS_VERSION = 3;
+const INCOME_INPUT_IDS = ['job-rate','job-tronc','tronc-ni-free','job-contract','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
 const INCOME_CASH_IDS  = ['c-allow','c-vinted','c-events'];
 function saveIncomeInputs() {
     const obj = { v: INCOME_INPUTS_VERSION };
@@ -3490,10 +3508,14 @@ function saveIncomeInputs() {
 function loadIncomeInputs() {
     const obj = Store.get('incomeInputs', null);
     if (!obj) return;
-    const ids = obj.v === INCOME_INPUTS_VERSION ? INCOME_INPUT_IDS : INCOME_CASH_IDS;
+    const ids = obj.v === INCOME_INPUTS_VERSION ? INCOME_INPUT_IDS
+              : obj.v === 2 ? INCOME_INPUT_IDS.filter(id => id !== 'job-hrs')
+              : INCOME_CASH_IDS;
     ids.forEach(id => {
         const el = document.getElementById(id);
-        if (!el || obj[id] == null || obj[id] === '') return;
+        if (!el || obj[id] == null) return;
+        if (id === 'job-hrs') { el.value = obj[id]; return; }   // '' = follow the contract
+        if (obj[id] === '') return;
         if (el.type === 'checkbox') el.checked = !!obj[id]; else el.value = obj[id];
     });
 }
