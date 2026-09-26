@@ -1150,11 +1150,19 @@
     <div class="est-grid">
         <div class="role-card">
             <div class="role-title">Hourly role</div>
-            <div class="role-sub">Monthly rota · hourly paid</div>
-            <div class="fg">
-                <label class="fl">Hourly rate</label>
-                <div class="pfx"><span class="pfx-sym">£</span>
-                    <input class="fi" type="number" id="job-rate" value="12.71" step="0.01" oninput="recalc()">
+            <div class="role-sub">Monthly rota · base wage + tronc</div>
+            <div class="fr">
+                <div class="fg">
+                    <label class="fl">Base rate / hr <span style="color:var(--accent);text-transform:none;letter-spacing:0">(min. wage)</span></label>
+                    <div class="pfx"><span class="pfx-sym">£</span>
+                        <input class="fi" type="number" id="job-rate" value="12.71" step="0.01" oninput="recalc()">
+                    </div>
+                </div>
+                <div class="fg">
+                    <label class="fl">Tronc / hr <span style="color:var(--accent);text-transform:none;letter-spacing:0">(varies)</span></label>
+                    <div class="pfx"><span class="pfx-sym">£</span>
+                        <input class="fi" type="number" id="job-tronc" value="2.79" step="0.01" min="0" oninput="recalc()">
+                    </div>
                 </div>
             </div>
             <div class="fg">
@@ -1162,9 +1170,16 @@
                 <input class="fi" type="number" id="job-hrs" value="140" step="0.25" oninput="recalc()">
             </div>
             <div class="calc-box">
+                <div class="calc-row"><span>Effective rate</span><span id="job-eff">—</span></div>
+                <div class="calc-row"><span>Base pay</span><span id="job-base">—</span></div>
+                <div class="calc-row"><span>Tronc</span><span id="job-tronc-amt">—</span></div>
                 <div class="calc-row"><span>Gross this payday</span><span id="job-gross">—</span></div>
                 <div class="calc-row"><span>Annualised (×12)</span><span id="job-annual">—</span></div>
             </div>
+            <label style="display:flex;gap:8px;align-items:flex-start;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;cursor:pointer">
+                <input type="checkbox" id="tronc-ni-free" checked onchange="recalc()" style="margin-top:2px;accent-color:var(--accent)">
+                <span>Tronc paid via an independent troncmaster: income tax applies but no National Insurance. Untick if your employer decides who gets the tips.</span>
+            </label>
         </div>
         <div class="role-card">
             <div class="role-title">Pay schedule</div>
@@ -1185,7 +1200,7 @@
         <div class="cb-rows">
             <div class="cb-row"><span>Gross pay</span><span id="c-gross">—</span></div>
             <div class="cb-row"><span>Income tax <span style="opacity:0.6">(on gross − pension)</span></span><span id="c-tax">—</span></div>
-            <div class="cb-row"><span>NI (employee 8%)</span><span id="c-ni">—</span></div>
+            <div class="cb-row"><span>NI (employee 8%) <span style="opacity:0.6" id="c-ni-note">(on base only)</span></span><span id="c-ni">—</span></div>
             <div class="cb-row"><span>Pension <input type="number" id="pension-pct" value="0" step="0.5" min="0" oninput="recalc()" class="dark-inp">% of qualifying</span><span id="c-pension">—</span></div>
             <div class="cb-row net"><span>💰 Estimated net take-home</span><span id="c-net">—</span></div>
         </div>
@@ -3395,8 +3410,10 @@ function calcNI(g)  { if (g<=NIL) return 0; if (g<=UEL) return (g-NIL)*0.08; ret
 let LAST_INCOME = { gross:0, net:0, cash:0, grandTotal:0 };
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function recalc() {
-    const rate = parseFloat(document.getElementById('job-rate').value) || 0;
-    const hrs  = parseFloat(document.getElementById('job-hrs').value)  || 0;
+    const rate  = parseFloat(document.getElementById('job-rate').value)  || 0;
+    const tronc = parseFloat(document.getElementById('job-tronc').value) || 0;
+    const hrs   = parseFloat(document.getElementById('job-hrs').value)   || 0;
+    const troncNIFree = document.getElementById('tronc-ni-free').checked;
 
     // Pay schedule — the window of rota hours the next payday covers
     const np = nextPayday();
@@ -3407,25 +3424,36 @@ function recalc() {
     document.getElementById('ps-avg').textContent    = (hrs / np.weeks).toFixed(1) + ' hrs';
     document.getElementById('job-hrs-hint').textContent = `(${fmtDay(np.start)} – ${fmtDay(np.end)})`;
 
-    // Hourly role — rota hours × rate, paid monthly
-    const grossMon = rate * hrs;
-    const grossAnn = grossMon * 12;
-    document.getElementById('job-gross').textContent  = fmt(grossMon);
-    document.getElementById('job-annual').textContent = fmt(grossAnn) + '/yr';
+    // Hourly role — rota hours × (base wage + tronc), paid monthly
+    const baseMon  = rate * hrs;
+    const troncMon = tronc * hrs;
+    const grossMon = baseMon + troncMon;
+    const grossAnn = grossMon * 12, baseAnn = baseMon * 12;
+    const money2 = n => '£' + n.toFixed(2);
+    document.getElementById('job-eff').textContent       = `${money2(rate + tronc)}/hr`;
+    document.getElementById('job-base').textContent      = fmt(baseMon);
+    document.getElementById('job-tronc-amt').textContent = fmt(troncMon);
+    document.getElementById('job-gross').textContent     = fmt(grossMon);
+    document.getElementById('job-annual').textContent    = fmt(grossAnn) + '/yr';
 
     // PAYE
+    // Tronc run by an independent troncmaster is taxed but NI-free, so NI is
+    // charged on base pay only; untick the box and it's NI'd like wages.
     // Pension is a net-pay arrangement: it reduces taxable pay for income tax,
-    // but NI is still charged on the full gross. Contribution = % of qualifying
-    // earnings (gross above the £6,240/yr lower band), matching the payslip.
+    // but NI is still charged on the full NI-able pay. Contribution = % of
+    // qualifying earnings above the £6,240/yr lower band, on base pay only
+    // (tronc is usually non-pensionable).
+    const niAnn   = troncNIFree ? baseAnn : grossAnn;
     const pctP    = (parseFloat(document.getElementById('pension-pct').value) || 0) / 100;
-    const pension = pctP * Math.max(0, grossAnn - 6240);
-    const tax = calcTax(grossAnn - pension);   // income tax on gross − pension
-    const ni  = calcNI(grossAnn);              // NI on full gross
+    const pension = pctP * Math.max(0, baseAnn - 6240);
+    const tax = calcTax(grossAnn - pension);   // income tax on gross (incl. tronc) − pension
+    const ni  = calcNI(niAnn);
     const net = grossAnn - tax - ni - pension;
     const netMon = net / 12;
     document.getElementById('c-gross').textContent   = fmt(grossMon);
     document.getElementById('c-tax').textContent     = fmtN(tax / 12);
     document.getElementById('c-ni').textContent      = fmtN(ni / 12);
+    document.getElementById('c-ni-note').textContent = troncNIFree ? '(on base only)' : '(on base + tronc)';
     document.getElementById('c-pension').textContent = fmtN(pension / 12);
     document.getElementById('c-net').textContent     = fmt(netMon);
 
@@ -3452,18 +3480,22 @@ function recalc() {
    v2 = the single hourly role (Oct 2026). Older saves hold the ONE LDN
    FOH/DA inputs and a 5% pension, so only their cash fields carry over. */
 const INCOME_INPUTS_VERSION = 2;
-const INCOME_INPUT_IDS = ['job-rate','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
+const INCOME_INPUT_IDS = ['job-rate','job-tronc','tronc-ni-free','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
 const INCOME_CASH_IDS  = ['c-allow','c-vinted','c-events'];
 function saveIncomeInputs() {
     const obj = { v: INCOME_INPUTS_VERSION };
-    INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
+    INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el) obj[id] = el.type === 'checkbox' ? el.checked : el.value; });
     Store.set('incomeInputs', obj);
 }
 function loadIncomeInputs() {
     const obj = Store.get('incomeInputs', null);
     if (!obj) return;
     const ids = obj.v === INCOME_INPUTS_VERSION ? INCOME_INPUT_IDS : INCOME_CASH_IDS;
-    ids.forEach(id => { const el = document.getElementById(id); if (el && obj[id] != null && obj[id] !== '') el.value = obj[id]; });
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el || obj[id] == null || obj[id] === '') return;
+        if (el.type === 'checkbox') el.checked = !!obj[id]; else el.value = obj[id];
+    });
 }
 
 /* ── MONTHLY INCOME TARGET ─────────────────────────── */
