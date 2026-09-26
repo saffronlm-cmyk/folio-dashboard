@@ -1,6 +1,6 @@
 # Emma Dashboard
 
-A personal finance dashboard that reads transactions directly from my **Emma** Google Sheet and layers on budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator. Single self-contained `index.html` — no build step, no framework. Chart.js from CDN, Google Sheets API v4 (read-only).
+A personal finance dashboard that reads transactions directly from my **Emma** Google Sheet and layers on budgeting, savings/net-worth tracking, and a UK income estimator. Single self-contained `index.html` — no build step, no framework. Chart.js from CDN, Google Sheets API v4 (read-only).
 
 ---
 
@@ -53,7 +53,7 @@ Once hosted, sign-in will fail until you whitelist the new URL:
 - `start.command` — local launcher (port 9000).
 - `HANDOFF.md` — full status, architecture, decisions, and the roadmap for the next builds. **Start here when picking the project back up.**
 - `CLAUDE.md` — guidance for Claude Code when working in this repo.
-- `docs/` — reference material (original holiday-pay estimator).
+- `docs/` — reference material (original ONE LDN holiday-pay estimator, no longer used in the app).
 
 ## Tech
 Vanilla HTML/CSS/JS · Chart.js 4.4 (CDN) · Google Identity Services + Sheets API v4 (read-only) · localStorage (migrating to Supabase later).

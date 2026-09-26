@@ -6,7 +6,7 @@ _Last updated: 2026-06-13. Read this first when picking the project back up._
 
 ## 1. TL;DR + status
 
-A working, single-file personal finance dashboard (`index.html`) that reads transactions live from the **Emma** Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator.
+A working, single-file personal finance dashboard (`index.html`) that reads transactions live from the **Emma** Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income estimator.
 
 **Done and verified:** Overview, Categories (spend + income), **Wealth** (merged Savings + Investments, 3-level drill-down), **live investment prices** (Yahoo via a Cloudflare Worker), Income estimator, Google Sheets connection, period filtering, mobile layout, mock fallback, localStorage persistence.
 
@@ -58,7 +58,7 @@ Connect Google → SheetsAPI.fetchData()
 - `excluded(cat)` — `/exclud|transfer/i`; drops transfers/excluded from all totals.
 - `aggregate(start,end)` — returns `{catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount}`.
 - `buildLiveView()` / `buildMockView()` — produce the unified `VIEW` object the renderers consume. **Mock fallback must always keep working** (it's the offline/demo state).
-- Period model: `payPeriod(offset)` (anchored on the **20th**), `rangeFor(sel)`, `prevRangeFor(sel)`. `CUR = {mode, offset}` holds the current selection.
+- Period model: `payPeriod(offset)` (anchored on **payday**: the 20th up to Sep 2026, the **last Friday of the month** from Oct 2026; `payAnchor()` handles weekends/bank holidays, `workWindow()` gives the rota-hours window a payday covers), `rangeFor(sel)`, `prevRangeFor(sel)`. `CUR = {mode, offset}` holds the current selection.
 - `CAT_MODE` (`'spend'|'income'`) — Categories tab toggle. `activeCats()/activeTotal()/activeNoun()` pick the right list.
 - `classOf(name)` + `CATEGORY_CLASS` — fixed vs variable classification (Store-persisted, keyword fallback).
 - `makeDonut(canvas, center, legend, cats, total, noun)` — generic donut+legend builder (reused for category, fixed, variable, and net-worth donuts).
@@ -73,7 +73,7 @@ Connect Google → SheetsAPI.fetchData()
 
 **Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (6-period history + average line + transactions), recurring-payment detection, and an "Excluded this period" line.
 
-**Income estimator** — FOH (**hours/month** × rate), DA (**shifts × editable day rate**), pooled PAYE tax, **pension net-pay model**, grand total (net + cash), **monthly "save as target"**, and the **Holiday Pay estimator** (quick calc + editable payslip log, 13 payslips pre-loaded).
+**Income estimator** — one generic **hourly role** on the hospitality **tronc** model: rota hours × (**base rate**, min. wage £12.71, + **tronc/hr**, currently £2.79, both editable). Tronc is taxed but NI-free when paid via an independent troncmaster (checkbox, on by default); pension applies to base pay only with a **pay-schedule card** (next payday, the hours window it covers, 4 vs 5 weeks, avg hrs/week), PAYE tax, **pension net-pay model** (defaults to 0% — not enrolled), grand total (net + cash) and **monthly "save as target"**. The ONE LDN FOH/DA roles and holiday-pay estimator were removed in Sep 2026 after the job change.
 
 **Wealth** (merged Savings + Investments) — single tab, **3-level drill-down** driven by `WEALTH_VIEW = {level, group, account}`:
 - **Level 0 (landing):** total net worth + **three donuts** — whole net worth by *type* (`renderTypeDonut`), Savings accounts, Investment accounts (`renderGroupDonut`, coloured by `PALETTE`) — then two clickable **type cards** (Savings / Investments).
@@ -94,9 +94,8 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 6. Decisions log
 
-- **DA pay:** `shifts × day rate`. Day rate is an **editable input pre-filled at £266.60** (derived from "5 shifts = £1,333"). **Verify against the next payslip** — it's higher than the £200 originally guessed.
 - **Pension:** net-pay arrangement. Income tax on `gross − pension`; **NI on full gross**; pension = **5% of qualifying earnings** (`gross − £6,240/yr`). Editable %.
-- **FOH:** entered as **hours/month** (from the rota planner), not per week.
+- **Hourly role:** paid the **last Friday of the month** for hours up to the **Friday before** (a week earlier), so a pay period covers 4 or 5 weeks of rota hours. Enter the total for that window.
 - **Savings withdrawals** (e.g. funding a holiday): re-tag as **`Transfer` in Emma** → auto-excluded from income; the purchase still counts as spend.
 - **Fixed categories:** Bills, Groceries, Transport, Subscriptions. Everything else = Variable.
 - **Storage:** local-only for now; chosen direction = **host now, Supabase later** (skip Google Sheets write-back).
@@ -121,7 +120,7 @@ Connect Google → SheetsAPI.fetchData()
 
 ### 8b. Budget estimator tab — canonical design (planned 2026-06-14)
 
-**Tab placement & period model.** New `Budget` tab between Categories and Wealth (`switchTab('budget')` → `renderBudget()`, page `#tab-budget`). The budget is a **per-pay-period** figure (monthly cadence, anchored on the 20th), so the tab **ignores the global period bar** (Weekly/Monthly/Quarterly/Yearly don't map onto a monthly budget) and carries its **own `‹ this period ›` stepper** over pay-period offsets — same way Wealth/Income already ignore the bar. Default = current in-progress period; step back to review past periods' outcomes.
+**Tab placement & period model.** New `Budget` tab between Categories and Wealth (`switchTab('budget')` → `renderBudget()`, page `#tab-budget`). The budget is a **per-pay-period** figure (monthly cadence, anchored on payday), so the tab **ignores the global period bar** (Weekly/Monthly/Quarterly/Yearly don't map onto a monthly budget) and carries its **own `‹ this period ›` stepper** over pay-period offsets — same way Wealth/Income already ignore the bar. Default = current in-progress period; step back to review past periods' outcomes.
 
 **Auto-estimate (core).** Per spend category, budget = **median of that category's total spend across the last 6 completed pay periods** (skip the current in-progress one). Reuses the `aggregate(payPeriod(i))` loop already in `catDetail()` (`i = 1..6`).
 - **Count £0 for absent categories** — a category present in 3 of 6 periods gives `[0,0,0,x,y,z]`, not `[x,y,z]`. Omitting zeros inflates every budget; including them makes the budget reflect a *typical* month. (Most important correctness choice.)

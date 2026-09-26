@@ -3,7 +3,7 @@
 Guidance for Claude Code working in **this repo** (the Emma Dashboard web app). For full status, architecture, decisions, and the build roadmap, read **HANDOFF.md** first.
 
 ## What this is
-A single-file personal finance web app (`index.html`) that reads transactions live from Saffron's Emma Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income + holiday-pay estimator. Personal project; goal is to grow it into a hosted app she can use from any device.
+A single-file personal finance web app (`index.html`) that reads transactions live from Saffron's Emma Google Sheet and adds budgeting, savings/net-worth tracking, and a UK income estimator. Personal project; goal is to grow it into a hosted app she can use from any device.
 
 ## Stack & constraints
 - **One file, no build step**: everything lives in `index.html` (HTML + CSS + JS).
@@ -19,7 +19,7 @@ A single-file personal finance web app (`index.html`) that reads transactions li
 - **Persist everything through `Store`** (`Store.get/set/remove`, namespaced `emmaDash:`). Never call `localStorage` directly in feature code — the whole point is to swap the adapter for Supabase later.
 - **View-builder pattern:** data → `aggregate()` → `buildLiveView()/buildMockView()` → `VIEW` → renderers. Add new derived data to the view builders, not ad-hoc in renderers.
 - **Keep the mock fallback working** for every feature (it's the offline/demo state and how the UI is verified).
-- **Reuse `makeDonut()`** for any new donut; **periods** always go through `rangeFor()`/`payPeriod()` (anchored on the 20th).
+- **Reuse `makeDonut()`** for any new donut; **periods** always go through `rangeFor()`/`payPeriod()` (anchored on payday: the 20th up to Sep 2026, the last Friday of the month from Oct 2026 — see `payAnchor()`).
 - **Design tokens:** CSS variables at the top — bg `#FAF7F5`, sidebar `#3D3229`, accent `#D4A69A`, positive `#7BA68A`, negative `#C47A6E`, font Inter. Reuse them; don't hardcode new colours.
 - Charts are module-level instances; **destroy before recreating** to avoid leaks.
 
