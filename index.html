@@ -703,69 +703,7 @@
             margin-top: 4px;
         }
 
-        .hp-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
-        .hp-formula {
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 11px 14px;
-            font-size: 11px;
-            color: var(--muted);
-            margin: 11px 0 16px;
-            line-height: 1.75;
-        }
-        .hp-formula strong { color: var(--text); }
-        .hp-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 18px;
-        }
-        .hp-stat {
-            background: var(--bg);
-            border-radius: 9px;
-            padding: 13px;
-            text-align: center;
-        }
-        .hp-stat-l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 5px; }
-        .hp-stat-v { font-size: 19px; font-weight: 700; }
-        .hp-calc {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .hp-calc label { font-size: 13px; font-weight: 600; flex-shrink: 0; }
-        .days-inp {
-            width: 65px; padding: 7px 10px;
-            border: 1.5px solid var(--border); border-radius: 8px;
-            font-size: 13px; font-family: 'Inter', sans-serif; text-align: center;
-        }
-        .days-inp:focus { outline: none; border-color: var(--accent); }
-        .hp-result { font-size: 20px; font-weight: 700; color: var(--positive); }
-
-        /* Holiday estimator — payslip log table */
-        .log-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-        .log-head {
-            display: grid; grid-template-columns: 92px 1fr 1fr 1fr 30px;
-            gap: 6px; align-items: center;
-            background: var(--text); color: var(--bg);
-            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 7px 10px;
-        }
-        .log-row {
-            display: grid; grid-template-columns: 92px 1fr 1fr 1fr 30px;
-            gap: 6px; align-items: center;
-            padding: 5px 10px; border-bottom: 1px solid var(--border);
-        }
-        .log-row:last-child { border-bottom: none; }
-        .log-row:nth-child(even) { background: var(--bg); }
-        .log-row input {
-            width: 100%; padding: 5px 7px;
-            border: 1px solid var(--border); border-radius: 4px;
-            font-family: 'Inter', sans-serif; font-size: 12px;
-            background: white; color: var(--text);
-        }
-        .log-row input:focus { outline: none; border-color: var(--accent); }
+        /* Small inline edit/delete button (Wealth accounts + holdings) */
         .log-del {
             background: none; border: 1px solid var(--border); border-radius: 4px;
             color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1;
@@ -773,22 +711,10 @@
         }
         .log-del:hover { border-color: var(--negative); color: var(--negative); }
 
-        /* Holiday estimator — result card */
-        .hp-result-card { background: var(--sidebar); color: white; border-radius: 12px; padding: 22px 24px; }
-        .hp-res-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: rgba(255,255,255,0.4); margin-bottom: 14px; }
-        .hp-res-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
-        .hp-res-big { font-size: 42px; font-weight: 700; letter-spacing: -1.5px; color: var(--accent); line-height: 1; }
-        .hp-res-sub { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 6px; }
-        .hp-result-card .hp-stat { background: rgba(255,255,255,0.06); }
-        .hp-result-card .hp-stat-l { color: rgba(255,255,255,0.4); }
-        .hp-result-card .hp-stat-v { color: white; font-size: 15px; }
-        .hp-workings { font-size: 11px; font-style: italic; color: rgba(255,255,255,0.4); line-height: 1.7; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: 4px; }
-
         /* ─── RESPONSIVE ──────────────────────────── */
         @media (max-width: 1000px) {
             .cat-kpi-grid { grid-template-columns: 1fr 1fr; }
             .overview-bottom { grid-template-columns: 1fr; }
-            .hp-stats { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 900px) {
             .wealth-donuts { grid-template-columns: 1fr; }
@@ -1218,56 +1144,49 @@
 <!-- ═══════════════════════════════ TAB 5: INCOME ══ -->
 <div class="page" id="tab-income">
     <div class="insight-strip" id="ins-income" style="margin-top:20px"></div>
-    <p class="page-meta" style="margin-top:18px;margin-bottom:20px">UK 2025/26 tax year · PAYE</p>
+    <p class="page-meta" style="margin-top:18px;margin-bottom:20px">UK 2026/27 tax year · PAYE · paid monthly</p>
 
-    <!-- Two role cards -->
+    <!-- Job card + pay schedule -->
     <div class="est-grid">
         <div class="role-card">
-            <div class="role-title">Front of House</div>
-            <div class="role-sub">ONE LDN · Hourly paid</div>
+            <div class="role-title">Hourly role</div>
+            <div class="role-sub">Monthly rota · hourly paid</div>
             <div class="fg">
                 <label class="fl">Hourly rate</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
-                    <input class="fi" type="number" id="foh-rate" value="14.05" step="0.01" oninput="recalc()">
+                    <input class="fi" type="number" id="job-rate" value="12.71" step="0.01" oninput="recalc()">
                 </div>
             </div>
             <div class="fg">
-                <label class="fl">Hours / month <span style="color:var(--accent);text-transform:none;letter-spacing:0">(from planner)</span></label>
-                <input class="fi" type="number" id="foh-hrs" value="140" oninput="recalc()">
+                <label class="fl">Rota hours this pay period <span style="color:var(--accent);text-transform:none;letter-spacing:0" id="job-hrs-hint">(from rota)</span></label>
+                <input class="fi" type="number" id="job-hrs" value="140" step="0.25" oninput="recalc()">
             </div>
             <div class="calc-box">
-                <div class="calc-row"><span>Monthly gross</span><span id="foh-gross">—</span></div>
-                <div class="calc-row"><span>Annualised</span><span id="foh-annual">—</span></div>
+                <div class="calc-row"><span>Gross this payday</span><span id="job-gross">—</span></div>
+                <div class="calc-row"><span>Annualised (×12)</span><span id="job-annual">—</span></div>
             </div>
         </div>
         <div class="role-card">
-            <div class="role-title">Data Analyst</div>
-            <div class="role-sub">ONE LDN · Day rate</div>
-            <div class="fg">
-                <label class="fl">Day rate <span style="color:var(--accent);text-transform:none;letter-spacing:0">(check vs payslip)</span></label>
-                <div class="pfx"><span class="pfx-sym">£</span>
-                    <input class="fi" type="number" id="da-rate" value="266.60" step="0.01" oninput="recalc()">
-                </div>
+            <div class="role-title">Pay schedule</div>
+            <div class="role-sub">Paid last Friday of the month · hours cut off the Friday before</div>
+            <div class="calc-box" style="margin-top:0">
+                <div class="calc-row"><span>Next payday</span><span id="ps-payday">—</span></div>
+                <div class="calc-row"><span>Hours counted</span><span id="ps-window">—</span></div>
+                <div class="calc-row"><span>Weeks in period</span><span id="ps-weeks">—</span></div>
+                <div class="calc-row"><span>Avg hours / week</span><span id="ps-avg">—</span></div>
             </div>
-            <div class="fg">
-                <label class="fl">Shifts / month</label>
-                <input class="fi" type="number" id="da-shifts" value="5" step="0.5" oninput="recalc()">
-            </div>
-            <div class="calc-box">
-                <div class="calc-row"><span>Monthly gross</span><span id="da-gross">—</span></div>
-                <div class="calc-row"><span>Annualised</span><span id="da-annual">—</span></div>
-            </div>
+            <p style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">Because paydays are the last Friday, a period covers either 4 or 5 weeks of hours. Enter the total rota hours between the two cut-off dates.</p>
         </div>
     </div>
 
-    <!-- Combined PAYE -->
+    <!-- PAYE -->
     <div class="combined-banner">
-        <div class="cb-title">Combined PAYE · pooled for tax</div>
+        <div class="cb-title">PAYE · monthly</div>
         <div class="cb-rows">
-            <div class="cb-row"><span>Combined gross</span><span id="c-gross">—</span></div>
+            <div class="cb-row"><span>Gross pay</span><span id="c-gross">—</span></div>
             <div class="cb-row"><span>Income tax <span style="opacity:0.6">(on gross − pension)</span></span><span id="c-tax">—</span></div>
             <div class="cb-row"><span>NI (employee 8%)</span><span id="c-ni">—</span></div>
-            <div class="cb-row"><span>Pension <input type="number" id="pension-pct" value="5" step="0.5" min="0" oninput="recalc()" class="dark-inp">% of qualifying</span><span id="c-pension">—</span></div>
+            <div class="cb-row"><span>Pension <input type="number" id="pension-pct" value="0" step="0.5" min="0" oninput="recalc()" class="dark-inp">% of qualifying</span><span id="c-pension">—</span></div>
             <div class="cb-row net"><span>💰 Estimated net take-home</span><span id="c-net">—</span></div>
         </div>
     </div>
@@ -1313,66 +1232,6 @@
         <button class="btn-p" onclick="saveTarget()">Save target</button>
     </div>
 
-    <!-- Holiday Pay Estimator -->
-    <div class="hp-card">
-        <div class="chart-title">Holiday Pay Estimator</div>
-        <div class="hp-formula">
-            ONE LDN Clause 6.2 · 52-week rolling average (hours-first)<br>
-            <strong>Effective rate</strong> = total gross earnings ÷ total hours worked<br>
-            <strong>Holiday pay</strong> = effective rate × holiday hours (8 hrs = 1 day)
-        </div>
-
-        <div class="toggle-group" style="margin-bottom:14px">
-            <div class="tog-btn active" id="hp-tog-quick" onclick="hpMode('quick')">Quick calc</div>
-            <div class="tog-btn" id="hp-tog-log" onclick="hpMode('log')">Payslip log</div>
-        </div>
-
-        <!-- Quick calc -->
-        <div id="hp-quick">
-            <div class="fr">
-                <div class="fg"><label class="fl">Total hours worked</label>
-                    <input class="fi" type="number" id="q-hours" value="1641.43" step="0.25"></div>
-                <div class="fg"><label class="fl">Total gross earnings</label>
-                    <div class="pfx"><span class="pfx-sym">£</span><input class="fi" type="number" id="q-earnings" value="25534.12" step="0.01"></div></div>
-            </div>
-            <div class="fr">
-                <div class="fg"><label class="fl">Paid weeks in period</label>
-                    <input class="fi" type="number" id="q-weeks" value="50.3" step="0.1" min="1" max="52"></div>
-                <div class="fg"><label class="fl">Holiday hours to value</label>
-                    <input class="fi" type="number" id="q-holhours" value="8" step="0.5"></div>
-            </div>
-            <button class="btn-p" style="margin-top:8px;width:100%" onclick="calcQuick()">Calculate →</button>
-        </div>
-
-        <!-- Payslip log -->
-        <div id="hp-log" style="display:none">
-            <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Pre-loaded from your payslips. Add a row as each new payslip arrives. Holiday pay received is excluded.</p>
-            <div class="log-table">
-                <div class="log-head"><span>Period</span><span>Hours</span><span>Wages £</span><span>Bonus £</span><span></span></div>
-                <div id="log-body"></div>
-            </div>
-            <button class="add-acc-btn" style="margin-top:8px" onclick="addLogRow()">+ add payslip row</button>
-            <div class="fg" style="max-width:220px;margin-top:14px"><label class="fl">Holiday hours to value</label>
-                <input class="fi" type="number" id="l-holhours" value="8" step="0.5"></div>
-            <button class="btn-p" style="margin-top:6px;width:100%" onclick="calcLog()">Calculate from log →</button>
-        </div>
-
-        <!-- Results -->
-        <div id="hp-results" style="display:none;margin-top:18px">
-            <div class="hp-result-card">
-                <div class="hp-res-eyebrow" id="hp-method">52-week average</div>
-                <div class="hp-res-label">Holiday pay due</div>
-                <div class="hp-res-big" id="out-total">—</div>
-                <div class="hp-res-sub" id="out-sub"></div>
-                <div class="hp-stats" style="margin-top:16px">
-                    <div class="hp-stat"><div class="hp-stat-l">Eff. hourly</div><div class="hp-stat-v" id="out-hourly">—</div></div>
-                    <div class="hp-stat"><div class="hp-stat-l">Weekly avg</div><div class="hp-stat-v" id="out-weekly">—</div></div>
-                    <div class="hp-stat"><div class="hp-stat-l">Daily (÷5)</div><div class="hp-stat-v" id="out-daily">—</div></div>
-                </div>
-                <div class="hp-workings" id="out-workings"></div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- ══════════════════════════════ TAB: BUDGET ══ -->
@@ -1758,29 +1617,11 @@ const INCOME_HIST_MOCK = {
     'Interest':     [12, 13, 14, 15, 16, 17],
 };
 const INCOME_TX_MOCK = {
-    'Salary':       [[1650.00,'ONE LDN 360','21 May']],
+    'Salary':       [[1650.00,'Employer payroll','29 May']],
     'Vinted Sales': [[22.00,'Vinted','3 Jun'],[18.00,'Vinted','30 May'],[35.00,'Vinted','27 May'],[15.00,'Vinted','24 May'],[20.00,'Vinted','22 May'],[10.00,'Vinted','21 May']],
     'Allowance':    [[60.00,'Mum','1 Jun']],
     'Interest':     [[17.00,'Chase Saver','31 May']],
 };
-
-/* Holiday-pay payslip data (Jun 2025 – May 2026), from Saffron's estimator.
-   Earnings = wages + bonus/commission; holiday pay received is excluded. */
-const PAYSLIPS = [
-    { label:'Jun 2025',   hours:170.48, wages:2591.30, extra:0      },
-    { label:'Jul 2025',   hours:151.50, wages:2302.80, extra:0      },
-    { label:'Aug 2025',   hours:159.50, wages:2424.40, extra:0      },
-    { label:'Sep 25 (1)', hours:127.75, wages:1794.89, extra:0      },
-    { label:'Sep 25 (2)', hours:13.75,  wages:193.19,  extra:0      },
-    { label:'Oct 2025',   hours:165.00, wages:2318.25, extra:125.00 },
-    { label:'Nov 2025',   hours:116.50, wages:1636.82, extra:50.00  },
-    { label:'Dec 2025',   hours:129.50, wages:1819.47, extra:100.00 },
-    { label:'Jan 2026',   hours:162.25, wages:2279.61, extra:25.00  },
-    { label:'Feb 2026',   hours:50.00,  wages:702.50,  extra:120.00 },
-    { label:'Mar 2026',   hours:136.75, wages:1921.34, extra:30.00  },
-    { label:'Apr 2026',   hours:173.00, wages:2430.65, extra:30.00  },
-    { label:'May 2026',   hours:85.45,  wages:2533.90, extra:105.00 },
-];
 
 /* App-owned data (persisted via Store) */
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -1884,17 +1725,65 @@ function payPeriod(offset = 0) {
     end.setHours(23, 59, 59, 999);
     return { start, end };
 }
-// Payday is the 20th, but when the 20th lands on a weekend it's paid the
-// preceding Friday (e.g. Sat 20 Jun 2026 → Fri 19 Jun). The pay period is
-// anchored on the actual payday so an early salary opens the new period rather
-// than spilling into the previous one. (year/month may be out of range — the
-// Date constructor normalises month/year wrap.)
+// Payday moved with the change of job:
+//  · up to Sep 2026 — the 20th, or the preceding Friday when it lands on a
+//    weekend (e.g. Sat 20 Jun 2026 → Fri 19 Jun);
+//  · from Oct 2026 — the last Friday of the month, moved to the preceding
+//    working day if that's a bank holiday (Good Friday, Christmas, Boxing Day).
+// The pay period is anchored on the actual payday so an early salary opens the
+// new period rather than spilling into the previous one. (year/month may be out
+// of range — normalised first, as the Date constructor would.)
+const PAYDAY_SWITCH = { year: 2026, month: 9 };   // Oct 2026 = first last-Friday payday
 function payAnchor(year, month) {
-    const d = new Date(year, month, 20, 0, 0, 0, 0);
+    const n = new Date(year, month, 1);
+    const y = n.getFullYear(), m = n.getMonth();
+    if (y > PAYDAY_SWITCH.year || (y === PAYDAY_SWITCH.year && m >= PAYDAY_SWITCH.month)) {
+        const d = lastFriday(y, m);
+        while (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d)) d.setDate(d.getDate() - 1);
+        return d;
+    }
+    const d = new Date(y, m, 20, 0, 0, 0, 0);
     const dow = d.getDay();                 // 0 = Sun, 6 = Sat
     if (dow === 6) d.setDate(19);           // Saturday → Friday the 19th
     else if (dow === 0) d.setDate(18);      // Sunday   → Friday the 18th
     return d;
+}
+function lastFriday(year, month) {
+    const d = new Date(year, month + 1, 0, 0, 0, 0, 0);   // last day of the month
+    d.setDate(d.getDate() - ((d.getDay() + 2) % 7));      // step back to Friday
+    return d;
+}
+// Only the bank holidays that can fall on a month's last Friday matter here.
+function isBankHoliday(d) {
+    const md = d.getMonth() * 100 + d.getDate();
+    if (md === 1125 || md === 1126) return true;          // 25 / 26 Dec
+    const gf = easterSunday(d.getFullYear()); gf.setDate(gf.getDate() - 2);
+    return d.getTime() === gf.getTime();
+}
+function easterSunday(y) {                                 // anonymous Gregorian algorithm
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1, day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, month, day, 0, 0, 0, 0);
+}
+// Hours paid on a given month's payday: from the Saturday after the previous
+// cut-off to the cut-off itself — the Friday a week before the last Friday.
+// Gives 4 or 5 weeks depending on how the last Fridays fall.
+function workWindow(year, month) {
+    const end = lastFriday(year, month); end.setDate(end.getDate() - 7);
+    const start = lastFriday(year, month - 1); start.setDate(start.getDate() - 6);
+    return { start, end, weeks: Math.round((end - start) / 864e5 + 1) / 7 };
+}
+// The next payday on or after today, with the hours window it pays for.
+function nextPayday() {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    let y = now.getFullYear(), m = now.getMonth();
+    let pd = payAnchor(y, m);
+    if (pd < now) { m += 1; pd = payAnchor(y, m); }
+    const n = new Date(y, m, 1);
+    return { payday: pd, ...workWindow(n.getFullYear(), n.getMonth()) };
 }
 function startOfWeek(d) {
     const x = new Date(d);
@@ -3504,36 +3393,37 @@ function calcTax(g) { if (g<=PA) return 0; if (g<=BRL) return (g-PA)*0.20; retur
 function calcNI(g)  { if (g<=NIL) return 0; if (g<=UEL) return (g-NIL)*0.08; return (UEL-NIL)*0.08 + (g-UEL)*0.02; }
 
 let LAST_INCOME = { gross:0, net:0, cash:0, grandTotal:0 };
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function recalc() {
-    const fohRate   = parseFloat(document.getElementById('foh-rate').value) || 0;
-    const fohHrs    = parseFloat(document.getElementById('foh-hrs').value)  || 0;
-    const daRate    = parseFloat(document.getElementById('da-rate').value)   || 0;
-    const daShifts  = parseFloat(document.getElementById('da-shifts').value) || 0;
+    const rate = parseFloat(document.getElementById('job-rate').value) || 0;
+    const hrs  = parseFloat(document.getElementById('job-hrs').value)  || 0;
 
-    // FOH — hourly, entered as hours per month (varies with shifts; taken from planner)
-    const fohMon = fohRate * fohHrs;
-    const fohAnn = fohMon * 12;
-    document.getElementById('foh-gross').textContent  = fmt(fohMon);
-    document.getElementById('foh-annual').textContent = fmt(fohAnn) + '/yr';
+    // Pay schedule — the window of rota hours the next payday covers
+    const np = nextPayday();
+    const dFmt = d => `${DOW[d.getDay()]} ${fmtDay(d)}`;
+    document.getElementById('ps-payday').textContent = dFmt(np.payday);
+    document.getElementById('ps-window').textContent = `${dFmt(np.start)} – ${dFmt(np.end)}`;
+    document.getElementById('ps-weeks').textContent  = `${np.weeks} weeks`;
+    document.getElementById('ps-avg').textContent    = (hrs / np.weeks).toFixed(1) + ' hrs';
+    document.getElementById('job-hrs-hint').textContent = `(${fmtDay(np.start)} – ${fmtDay(np.end)})`;
 
-    // DA — shifts × day rate (entered per month)
-    const daMon = daRate * daShifts;
-    const daAnn = daMon * 12;
-    document.getElementById('da-gross').textContent  = fmt(daMon);
-    document.getElementById('da-annual').textContent = fmt(daAnn) + '/yr';
+    // Hourly role — rota hours × rate, paid monthly
+    const grossMon = rate * hrs;
+    const grossAnn = grossMon * 12;
+    document.getElementById('job-gross').textContent  = fmt(grossMon);
+    document.getElementById('job-annual').textContent = fmt(grossAnn) + '/yr';
 
-    // Combined PAYE (pooled for tax)
+    // PAYE
     // Pension is a net-pay arrangement: it reduces taxable pay for income tax,
     // but NI is still charged on the full gross. Contribution = % of qualifying
     // earnings (gross above the £6,240/yr lower band), matching the payslip.
-    const combAnn = fohAnn + daAnn;
     const pctP    = (parseFloat(document.getElementById('pension-pct').value) || 0) / 100;
-    const pension = pctP * Math.max(0, combAnn - 6240);
-    const tax = calcTax(combAnn - pension);   // income tax on gross − pension
-    const ni  = calcNI(combAnn);              // NI on full gross
-    const net = combAnn - tax - ni - pension;
+    const pension = pctP * Math.max(0, grossAnn - 6240);
+    const tax = calcTax(grossAnn - pension);   // income tax on gross − pension
+    const ni  = calcNI(grossAnn);              // NI on full gross
+    const net = grossAnn - tax - ni - pension;
     const netMon = net / 12;
-    document.getElementById('c-gross').textContent   = fmt(combAnn / 12);
+    document.getElementById('c-gross').textContent   = fmt(grossMon);
     document.getElementById('c-tax').textContent     = fmtN(tax / 12);
     document.getElementById('c-ni').textContent      = fmtN(ni / 12);
     document.getElementById('c-pension').textContent = fmtN(pension / 12);
@@ -3552,23 +3442,28 @@ function recalc() {
     document.getElementById('gt-cash').textContent  = fmt(cashMon);
     document.getElementById('gt-total').textContent = fmt(grand);
 
-    LAST_INCOME = { gross:combAnn/12, net:netMon, cash:cashMon, grandTotal:grand };
+    LAST_INCOME = { gross:grossMon, net:netMon, cash:cashMon, grandTotal:grand };
     saveIncomeInputs();   // persist edits so they survive a reload
     renderNextIncome();
     if (VIEW) renderAllInsights();   // income feeds save / safe-to-spend / income-estimate insights
 }
 
-/* Persist / restore the income estimator inputs (localStorage via Store) */
-const INCOME_INPUT_IDS = ['foh-rate','foh-hrs','da-rate','da-shifts','pension-pct','c-allow','c-vinted','c-events'];
+/* Persist / restore the income estimator inputs (localStorage via Store).
+   v2 = the single hourly role (Oct 2026). Older saves hold the ONE LDN
+   FOH/DA inputs and a 5% pension, so only their cash fields carry over. */
+const INCOME_INPUTS_VERSION = 2;
+const INCOME_INPUT_IDS = ['job-rate','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
+const INCOME_CASH_IDS  = ['c-allow','c-vinted','c-events'];
 function saveIncomeInputs() {
-    const obj = {};
+    const obj = { v: INCOME_INPUTS_VERSION };
     INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el) obj[id] = el.value; });
     Store.set('incomeInputs', obj);
 }
 function loadIncomeInputs() {
     const obj = Store.get('incomeInputs', null);
     if (!obj) return;
-    INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el && obj[id] != null && obj[id] !== '') el.value = obj[id]; });
+    const ids = obj.v === INCOME_INPUTS_VERSION ? INCOME_INPUT_IDS : INCOME_CASH_IDS;
+    ids.forEach(id => { const el = document.getElementById(id); if (el && obj[id] != null && obj[id] !== '') el.value = obj[id]; });
 }
 
 /* ── MONTHLY INCOME TARGET ─────────────────────────── */
@@ -3586,63 +3481,6 @@ function updateTargetNote() {
     note.textContent = t
         ? `✓ Target saved for ${m}: £${Math.round(t.grandTotal).toLocaleString()} total income.`
         : 'Save this estimate as an income target for the chosen month.';
-}
-
-/* ── HOLIDAY PAY ESTIMATOR ─────────────────────────── */
-let HP_ROWS = 0;
-function hpMode(mode) {
-    document.getElementById('hp-tog-quick').classList.toggle('active', mode === 'quick');
-    document.getElementById('hp-tog-log').classList.toggle('active', mode === 'log');
-    document.getElementById('hp-quick').style.display = mode === 'quick' ? 'block' : 'none';
-    document.getElementById('hp-log').style.display   = mode === 'log'   ? 'block' : 'none';
-    document.getElementById('hp-results').style.display = 'none';
-    if (mode === 'log' && document.getElementById('log-body').children.length === 0) populateLog();
-}
-function populateLog() { PAYSLIPS.forEach(p => addLogRow(p.label, p.hours, p.wages, p.extra)); }
-function addLogRow(label='', hours='', wages='', extra='') {
-    HP_ROWS++; const id = 'lr-' + HP_ROWS;
-    const div = document.createElement('div');
-    div.className = 'log-row'; div.id = id;
-    div.innerHTML =
-        `<input type="text" value="${label}" placeholder="Jun 2025">
-         <input type="number" class="lr-h" value="${hours}" step="0.25" placeholder="0">
-         <input type="number" class="lr-w" value="${wages}" step="0.01" placeholder="0">
-         <input type="number" class="lr-x" value="${extra}" step="0.01" placeholder="0">
-         <button class="log-del" onclick="document.getElementById('${id}').remove()">×</button>`;
-    document.getElementById('log-body').appendChild(div);
-}
-function fmtHP(n) { return '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-function showHPResults(totalHours, totalEarn, weeks, holHours, method) {
-    const eff = totalEarn / totalHours, weekly = totalEarn / weeks, daily = weekly / 5, pay = eff * holHours;
-    document.getElementById('hp-method').textContent  = method;
-    document.getElementById('out-total').textContent  = fmtHP(pay);
-    document.getElementById('out-sub').textContent    = `${holHours} hrs × ${fmtHP(eff)}/hr`;
-    document.getElementById('out-hourly').textContent = fmtHP(eff) + '/hr';
-    document.getElementById('out-weekly').textContent = fmtHP(weekly);
-    document.getElementById('out-daily').textContent  = fmtHP(daily);
-    document.getElementById('out-workings').textContent =
-        `${fmtHP(totalEarn)} ÷ ${totalHours.toFixed(2)} hrs = ${fmtHP(eff)}/hr  ·  ÷ ${weeks} wks = ${fmtHP(weekly)}/wk  ·  ÷ 5 = ${fmtHP(daily)}/day`;
-    document.getElementById('hp-results').style.display = 'block';
-}
-function calcQuick() {
-    const h = parseFloat(document.getElementById('q-hours').value);
-    const e = parseFloat(document.getElementById('q-earnings').value);
-    const w = parseFloat(document.getElementById('q-weeks').value) || 50.3;
-    const hh = parseFloat(document.getElementById('q-holhours').value);
-    if (!h || !e || !hh) { alert('Fill in all fields.'); return; }
-    showHPResults(h, e, w, hh, '52-week average · quick calc');
-}
-function calcLog() {
-    const rows = document.querySelectorAll('#log-body .log-row');
-    let totalH = 0, totalE = 0;
-    rows.forEach(r => {
-        totalH += parseFloat(r.querySelector('.lr-h').value) || 0;
-        totalE += (parseFloat(r.querySelector('.lr-w').value) || 0) + (parseFloat(r.querySelector('.lr-x').value) || 0);
-    });
-    const hh = parseFloat(document.getElementById('l-holhours').value);
-    if (!totalH || !totalE || !hh) { alert('No data in the log.'); return; }
-    const approxWeeks = Math.min(rows.length * 4.33, 52);
-    showHPResults(totalH, totalE, approxWeeks, hh, '52-week average · payslip log');
 }
 
 /* Re-read app-owned state from Store after a Supabase hydrate, then repaint.
