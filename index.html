@@ -4,32 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Emma Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
+        /* Hairline tokens (see design_handoff_emma_hairline/README.md) */
         :root {
-            --bg:       #FAF7F5;
-            --sidebar:  #3D3229;
-            --accent:   #D4A69A;
-            --text:     #2C2118;
-            --muted:    #8B7355;
-            --positive: #7BA68A;
-            --negative: #C47A6E;
-            --card:     #FFFFFF;
-            --border:   #EDE8E3;
-            --sw: 220px;
+            --bg:          #fafafa;   /* page canvas, table header rows */
+            --sidebar:     #171717;
+            --accent:      #0070f3;   /* pace tick, links, focus ring */
+            --text:        #171717;   /* ink */
+            --text-2:      #4d4d4d;
+            --muted:       #8f8f8f;   /* text-3: labels, meta, axis */
+            --text-4:      #a1a1a1;
+            --positive:    #1a9e5c;
+            --positive-bg: #e6f5ec;
+            --negative:    #ee0000;
+            --negative-bg: #ffe8e8;
+            --warning:     #f5a623;
+            --card:        #ffffff;
+            --border:      #ebebeb;   /* line: card ring, dividers */
+            --line-soft:   #f2f2f2;   /* row dividers, bar tracks */
+            --line-strong: #d4d4d4;
+            --ring:        0 0 0 1px var(--border);
+            --font:        'Geist', Arial, sans-serif;
+            --mono:        'Geist Mono', ui-monospace, monospace;
+            --sw: 232px;
         }
 
         * { margin:0; padding:0; box-sizing:border-box; }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font);
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        button, input, select { font-family: inherit; }
+
+        /* Number typography helpers (emitted by fmtMoney / fmtPct) */
+        .cur { font-size: 0.6em; letter-spacing: 0; margin-right: 0.04em; }
+        .sg  { font-size: 0.8em; letter-spacing: 0; }
+        .pc  { font-size: 0.6em; letter-spacing: 0; margin-left: 0.04em; }
+        .pos { color: var(--positive); }
+        .neg { color: var(--negative); }
+        .mut { color: var(--muted); }
+
+        .eyebrow {
+            font-family: var(--mono); font-size: 12px; font-weight: 500; line-height: 16px;
+            text-transform: uppercase; color: var(--muted);
         }
 
         /* ─── SIDEBAR ─────────────────────────────── */
@@ -39,149 +66,144 @@
             width: var(--sw);
             height: 100vh;
             background: var(--sidebar);
-            padding: 28px 14px;
+            padding: 24px 16px;
             display: flex;
             flex-direction: column;
+            gap: 4px;
             z-index: 100;
         }
 
         .brand {
-            padding: 0 8px;
-            margin-bottom: 36px;
+            display: flex; flex-direction: column; gap: 4px;
+            padding: 0 10px 24px;
         }
         .brand-name {
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: -0.3px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: -0.32px;
         }
         .brand-sub {
+            font-family: var(--mono);
             font-size: 11px;
-            color: rgba(212,166,154,0.55);
-            margin-top: 2px;
+            font-weight: 500;
+            text-transform: uppercase;
+            color: var(--muted);
         }
 
         .nav-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 8px;
+            gap: 12px;
+            height: 36px;
+            padding: 0 10px;
+            border-radius: 6px;
             cursor: pointer;
-            color: rgba(255,255,255,0.45);
-            font-size: 13px;
+            color: var(--text-4);
+            font-size: 14px;
             font-weight: 500;
-            transition: all 0.15s;
-            margin-bottom: 2px;
+            transition: background 0.15s, color 0.15s;
             user-select: none;
         }
-        .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); }
-        .nav-item.active { background: rgba(212,166,154,0.16); color: var(--accent); }
-        .nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+        .nav-item:hover { background: rgba(255,255,255,0.06); }
+        .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
+        .nav-icon { width: 16px; height: 16px; flex-shrink: 0; filter: invert(1); opacity: 0.6; }
+        .nav-item.active .nav-icon { opacity: 1; }
 
         .sidebar-foot {
             margin-top: auto;
-            padding: 0 8px;
+            padding: 0 4px;
+            display: flex; flex-direction: column; gap: 12px;
         }
         .signin-btn {
             width: 100%;
-            padding: 9px;
+            height: 32px;
             border: none;
-            border-radius: 8px;
-            background: var(--accent);
-            color: #3D3229;
-            font-weight: 600;
-            font-size: 12px;
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text);
+            font-weight: 500;
+            font-size: 14px;
             cursor: pointer;
-            font-family: 'Inter', sans-serif;
             transition: opacity 0.15s;
         }
         .signin-btn:hover { opacity: 0.88; }
-        .conn-row { margin-top: 10px; font-size: 11px; color: rgba(255,255,255,0.3); }
+        .conn-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-4); }
         .conn-dot {
-            display: inline-block;
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #C47A6E;
-            margin-right: 5px;
-            vertical-align: middle;
+            width: 8px; height: 8px;
+            border-radius: 9999px;
+            background: var(--warning);
+            flex-shrink: 0;
         }
-        .conn-dot.live { background: #7BA68A; }
+        .conn-dot.live { background: var(--positive); }
 
         /* ─── MAIN ────────────────────────────────── */
-        .main { margin-left: var(--sw); min-height: 100vh; }
+        .main { margin-left: var(--sw); min-height: 100vh; padding: 0 40px 48px; }
 
-        /* ─── PERIOD BAR ──────────────────────────── */
+        /* ─── HEADER ROW (title + period chips + range) ── */
         .period-bar {
-            position: sticky; top:0;
+            position: sticky; top: -20px;   /* 32px top padding collapses to 12px when stuck */
             background: var(--bg);
-            border-bottom: 1px solid var(--border);
-            padding: 11px 28px;
+            padding: 32px 0 24px;
             display: flex;
             align-items: center;
-            gap: 7px;
+            gap: 8px;
             z-index: 50;
             overflow-x: auto;
         }
-        .period-label {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-            color: var(--muted);
-            margin-right: 2px;
-            flex-shrink: 0;
-        }
+        .page-title { margin: 0 16px 0 0; font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.4px; flex-shrink: 0; }
+        .period-label { display: none; }
         .chip {
-            padding: 5px 13px;
-            border-radius: 20px;
-            font-size: 12px;
+            display: inline-flex; align-items: center; gap: 4px;
+            height: 32px;
+            padding: 0 10px;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: 500;
-            color: var(--muted);
-            background: transparent;
-            border: 1px solid var(--border);
+            color: var(--text);
+            background: var(--card);
+            border: none;
+            box-shadow: var(--ring);
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background 0.15s;
             white-space: nowrap;
             flex-shrink: 0;
-            font-family: 'Inter', sans-serif;
         }
-        .chip:hover { border-color: var(--accent); color: var(--text); }
-        .chip.active { background: var(--text); color: #FAF7F5; border-color: var(--text); }
+        .chip:hover { background: var(--line-soft); }
+        .chip.active { background: var(--text); color: #fff; box-shadow: none; }
 
         .prev-wrap { position: relative; flex-shrink: 0; }
         .prev-dd {
-            position: absolute; top: calc(100% + 6px); left: 0;
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 5px;
-            min-width: 200px;
-            box-shadow: 0 4px 16px rgba(44,33,24,0.1);
+            position: fixed;
+            background: var(--card);
+            border-radius: 12px;
+            padding: 4px;
+            min-width: 220px;
+            margin-top: 6px;
+            box-shadow: var(--ring), 0 8px 24px -8px rgba(0,0,0,0.12);
             display: none; z-index: 200;
         }
         .prev-dd.open { display: block; }
         .prev-opt {
             padding: 8px 10px;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
             color: var(--text);
         }
-        .prev-opt small { color: var(--muted); }
-        .prev-opt:hover { background: var(--bg); }
+        .prev-opt small { color: var(--muted); font-size: 12px; }
+        .prev-opt:hover { background: var(--line-soft); }
 
         .period-display {
             margin-left: auto;
-            font-size: 12px;
-            color: var(--muted);
-            font-weight: 500;
+            font-size: 14px;
+            color: var(--text-2);
             flex-shrink: 0;
             padding-left: 12px;
         }
 
         /* ─── PAGES ───────────────────────────────── */
-        .page { padding: 24px 28px 48px; display: none; }
+        .page { display: none; }
         .page.active { display: block; }
 
         .page-meta {
@@ -191,218 +213,232 @@
         }
 
         /* ─── LAYOUT ──────────────────────────────── */
-        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .gap { margin-top: 14px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .gap { margin-top: 16px; }
 
         /* ─── CARDS ───────────────────────────────── */
         .card {
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
-            border: 1px solid var(--border);
+            box-shadow: var(--ring);
         }
         .card-label {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
+            font-size: 12px;
             color: var(--muted);
             margin-bottom: 8px;
         }
-
-        /* ─── HERO KPI ────────────────────────────── */
-        .hero-card {
-            background: var(--card);
-            border-radius: 14px;
-            padding: 22px 24px;
-            border: 1px solid var(--border);
-            border-left-width: 4px;
-        }
-        .hero-card.income  { border-left-color: var(--positive); }
-        .hero-card.spending { border-left-color: var(--negative); }
-        .hero-card.estimated { border-left-color: var(--accent); }
-
-        .hero-row {
-            display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-        }
-        .hero-right { text-align: right; flex-shrink: 0; }
-        .hero-value {
-            font-size: 33px;
-            font-weight: 700;
-            letter-spacing: -1.2px;
-            line-height: 1.1;
-        }
-        .hero-value.pos { color: var(--positive); }
-        .hero-value.neg { color: var(--negative); }
-        .hero-value.est { color: var(--accent); }
-
-        .mom {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 3px 9px;
-            border-radius: 20px;
-        }
-        .mom.ub { background: rgba(196,122,110,0.12); color: var(--negative); }
-        .mom.dg { background: rgba(123,166,138,0.12); color: var(--positive); }
-        .mom-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
 
         /* ─── CHART CARD ──────────────────────────── */
         .chart-card {
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
-            border: 1px solid var(--border);
+            box-shadow: var(--ring);
         }
         .chart-title {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-            color: var(--muted);
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 28px;
+            letter-spacing: -0.4px;
+            color: var(--text);
             margin-bottom: 16px;
         }
         .chart-box { position: relative; }
 
-        /* ─── PERIOD COMPARE ──────────────────────── */
-        .pblock {
-            flex: 1;
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 14px 16px;
-        }
-        .pblock-label {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--muted);
-            margin-bottom: 3px;
-        }
-        .pblock-range { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
-        .pblock-amount { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-        .pdiff {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 11px 14px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .pdiff-label { font-size: 12px; color: var(--muted); }
-        .pdiff-val { font-size: 13px; font-weight: 700; }
+        /* ─── BARS (budget fill + blue pace tick) ─── */
+        .bar { position: relative; height: 6px; border-radius: 9999px; background: var(--line-soft); }
+        .bar-lg { height: 8px; }
+        .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9999px; background: var(--text); transition: width 0.3s; }
+        .bar-fill.near { background: var(--warning); }
+        .bar-fill.over { background: var(--negative); }
+        .bar-pace { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--accent); }
+        .bar-lg .bar-pace { top: -5px; bottom: -5px; width: 2px; }
 
-        /* ─── DONUT + CATS LAYOUT ─────────────────── */
-        .overview-bottom {
-            display: grid;
-            grid-template-columns: 260px 1fr;
-            gap: 14px;
-            align-items: start;
+        .pill {
+            display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 9999px;
+            font-size: 12px; font-weight: 500; white-space: nowrap;
         }
+        .pill.pos { background: var(--positive-bg); color: var(--positive); }
+        .pill.neg { background: var(--negative-bg); color: var(--negative); }
+        .ico-chip {
+            width: 28px; height: 28px; flex-shrink: 0; border-radius: 9999px; box-shadow: var(--ring);
+            display: flex; align-items: center; justify-content: center; background: var(--card);
+        }
+        .ico-chip img { width: 14px; height: 14px; }
+
+        /* ─── OVERVIEW (1c) ───────────────────────── */
+        #tab-overview.active { display: flex; flex-direction: column; gap: 24px; }
+
+        .ov-hero {
+            position: relative; overflow: hidden;
+            display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+            background: var(--card); border-radius: 16px; box-shadow: var(--ring);
+        }
+        .ov-hero-main { padding: 32px; display: flex; flex-direction: column; gap: 16px; }
+        .ov-hero-amts { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+        .ov-hero-amt { font-size: 40px; font-weight: 600; line-height: 40px; letter-spacing: -1.8px; }
+        .ov-hero-of { font-size: 20px; font-weight: 600; letter-spacing: -0.4px; color: var(--text-4); }
+        .ov-hero-line { font-size: 14px; color: var(--text-2); }
+        .ov-hero-line .pos, .ov-hero-line .neg { font-weight: 500; }
+        .ov-hero-side { position: relative; overflow: hidden; border-left: 1px solid var(--border); }
+        .mesh {
+            position: absolute; inset: -30%;
+            background:
+                radial-gradient(40% 50% at 30% 35%, rgba(0,223,216,.7), transparent 70%),
+                radial-gradient(40% 50% at 55% 60%, rgba(0,124,240,.6), transparent 70%),
+                radial-gradient(35% 45% at 70% 30%, rgba(121,40,202,.55), transparent 70%),
+                radial-gradient(30% 40% at 40% 80%, rgba(255,0,128,.5), transparent 70%),
+                radial-gradient(30% 40% at 85% 75%, rgba(249,203,40,.6), transparent 70%);
+            filter: blur(30px);
+        }
+        .ov-hero-side-in { position: relative; height: 100%; padding: 32px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+        .ov-side-l { font-size: 12px; color: var(--text); opacity: 0.7; }
+        .ov-side-v { font-size: 32px; font-weight: 600; line-height: 40px; letter-spacing: -1.28px; }
+        .ov-side-d { font-size: 13px; font-weight: 500; }
+
+        .kpi-strip {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            background: var(--card); border-radius: 12px; box-shadow: var(--ring);
+        }
+        .kpi-cell { padding: 20px 24px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border); min-width: 0; }
+        .kpi-cell:last-child { border-right: none; }
+        .kpi-l { font-size: 12px; color: var(--muted); }
+        .kpi-row { display: flex; align-items: baseline; gap: 8px; }
+        .kpi-v { font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
+        .kpi-d { font-size: 12px; font-weight: 500; }
+
+        .ov-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+        .ledger { background: var(--card); border-radius: 12px; box-shadow: var(--ring); overflow: hidden; }
+        .ledger-head, .ledger-row {
+            display: grid; grid-template-columns: minmax(0, 2fr) 64px minmax(0, 1.4fr) 56px 104px;
+            gap: 16px; align-items: center;
+        }
+        .ledger-head {
+            padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
+            font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; color: var(--muted);
+        }
+        .ledger-head .r { text-align: right; }
+        .ledger-row { padding: 14px 20px; border-bottom: 1px solid var(--line-soft); }
+        .ledger-row:last-child { border-bottom: none; }
+        .lr-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .lr-txt { display: flex; flex-direction: column; min-width: 0; }
+        .lr-t { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lr-m { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lr-spent { text-align: right; font-size: 14px; font-weight: 600; }
+        .lr-bar { display: flex; flex-direction: column; gap: 4px; }
+        .lr-bm { font-size: 11px; color: var(--muted); }
+        .lr-mom { text-align: right; font-size: 13px; font-weight: 500; }
+        .lr-status { justify-self: end; }
+
+        .ov-side { display: flex; flex-direction: column; gap: 16px; }
+        .side-card { background: var(--card); border-radius: 12px; box-shadow: var(--ring); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .pc-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+        .pc-row > span:first-child { color: var(--text-2); }
+        .pc-row > span:last-child { font-weight: 600; white-space: nowrap; }
+        .pc-row.pc-diff { padding-top: 12px; border-top: 1px solid var(--border); }
+
+        /* ─── DONUTS (shared: Categories + Wealth) ── */
+        .donut-card { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+        .donut-card .chart-title { margin: 0; }
+        .donut-body { display: flex; gap: 24px; align-items: center; }
         .donut-wrap {
             position: relative;
-            width: 170px;
-            height: 170px;
-            margin: 0 auto;
+            width: 150px;
+            height: 150px;
+            flex-shrink: 0;
         }
+        .donut-wrap canvas { max-width: 100%; max-height: 100%; }   /* empty donut: no chart drawn, canvas keeps its 300px default */
         .donut-center {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; align-items: center;
             text-align: center;
             pointer-events: none;
+            max-width: 96px;
         }
-        .donut-cv { font-size: 17px; font-weight: 700; }
-        .donut-cl { font-size: 10px; color: var(--muted); font-weight: 500; }
-        .legend { margin-top: 14px; }
-        .leg-item { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-size: 11px; }
-        .leg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .leg-name { flex: 1; color: var(--text); }
-        .leg-amt { color: var(--muted); font-weight: 600; }
+        .donut-cv { font-size: 20px; font-weight: 600; letter-spacing: -0.4px; line-height: 28px; white-space: nowrap; }
+        .donut-cl { font-size: 12px; color: var(--muted); line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 96px; }
+        .legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+        .leg-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+        .leg-name { flex: 1; min-width: 0; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .leg-amt { font-weight: 500; white-space: nowrap; }
+        .legend .empty-state { padding: 0; text-align: left; }
+        #donut-single .legend { max-width: 360px; }
 
-        /* ─── CAT KPI GRID ────────────────────────── */
+        /* ─── KPI STRIP (Wealth drill-ins; kpiCard()) ── */
         .cat-kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 9px;
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+            background: var(--card); border-radius: 12px; box-shadow: var(--ring);
         }
-        .ckpi {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 16px 16px 14px;
-            border: 1px solid var(--border);
-        }
-        .ckpi-name { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; }
-        .ckpi-val  { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; }
-        .ckpi-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-        .ckpi-last { font-size: 11px; color: var(--muted); }
-        .ckpi-mom  { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+        .ckpi { padding: 24px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--border); min-width: 0; }
+        .ckpi:last-child { border-right: none; }
+        .ckpi-name { font-size: 12px; color: var(--muted); }
+        .ckpi-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .ckpi-val  { font-size: 32px; font-weight: 600; line-height: 40px; letter-spacing: -1.28px; white-space: nowrap; }
+        .ckpi-pct  { font-size: 14px; font-weight: 500; white-space: nowrap; }
 
-        /* ─── TOGGLE ──────────────────────────────── */
+        /* ─── TOGGLE (segmented control) ──────────── */
         .toggle-group {
             display: inline-flex;
-            background: var(--border);
+            align-self: flex-start;
+            gap: 2px;
+            background: var(--line-soft);
             border-radius: 8px;
             padding: 3px;
-            margin-bottom: 16px;
         }
         .tog-btn {
-            padding: 5px 16px;
+            display: inline-flex; align-items: center;
+            height: 30px;
+            padding: 0 14px;
             border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--muted);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-2);
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background 0.15s, color 0.15s;
+            user-select: none;
         }
-        .tog-btn.active {
-            background: white;
-            color: var(--text);
-            box-shadow: 0 1px 4px rgba(44,33,24,0.1);
-        }
+        .tog-btn:hover { color: var(--text); }
+        .tog-btn.active { background: var(--card); color: var(--text); box-shadow: var(--ring); }
 
-        /* ─── CAT LIST ────────────────────────────── */
+        /* ─── CATEGORIES ──────────────────────────── */
+        #cat-list-view > * + * { margin-top: 24px; }   /* closeSubview() sets display:block inline, so no flex gap */
+        .cat-list-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .meta { font-size: 12px; color: var(--muted); }
+        .sec-title { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.4px; }
         .cat-list {
-            background: white;
+            background: var(--card);
             border-radius: 12px;
-            border: 1px solid var(--border);
+            box-shadow: var(--ring);
             overflow: hidden;
         }
         .cat-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 96px 104px 16px;
+            gap: 16px;
             align-items: center;
-            padding: 13px 18px;
-            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--line-soft);
             cursor: pointer;
             transition: background 0.1s;
         }
         .cat-row:last-child { border-bottom: none; }
         .cat-row:hover { background: var(--bg); }
-        .cat-icon {
-            width: 34px; height: 34px;
-            background: var(--bg);
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 17px;
-            margin-right: 12px;
-            flex-shrink: 0;
-        }
-        .cat-info { flex: 1; }
-        .cat-name  { font-size: 13px; font-weight: 600; }
-        .cat-meta  { font-size: 11px; color: var(--muted); margin-top: 2px; }
-        .cat-right { text-align: right; }
-        .cat-amt   { font-size: 14px; font-weight: 700; }
-        .cat-pct   { font-size: 11px; font-weight: 600; margin-top: 2px; }
-        .cat-arrow { color: var(--muted); margin-left: 10px; font-size: 14px; }
+        .cat-icon { width: 32px; height: 32px; }
+        .cat-icon img { width: 16px; height: 16px; }
+        .cat-info { display: flex; flex-direction: column; min-width: 0; }
+        .cat-name  { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-meta  { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .share-bar { height: 6px; border-radius: 9999px; background: var(--line-soft); overflow: hidden; }
+        .share-bar > div { height: 100%; }
+        .cat-amt   { text-align: right; font-size: 14px; font-weight: 600; }
+        .cat-pct   { justify-self: end; font-size: 13px; font-weight: 500; }
+        .cat-arrow { width: 16px; height: 16px; opacity: 0.4; }
 
         .empty-state {
             padding: 40px 18px;
@@ -411,318 +447,367 @@
             font-size: 13px;
         }
 
-        /* ─── SUBVIEW ─────────────────────────────── */
+        /* ─── CATEGORY DETAIL (drill-in) ─────────── */
         .subview { display: none; }
-        .subview.active { display: block; }
+        .subview.active { display: flex; flex-direction: column; gap: 24px; }
+        .main:has(#cat-subview.active) .period-bar { display: none; }   /* changing period closes the drill-in anyway */
+        #tab-categories:has(#cat-subview.active) { padding-top: 32px; }
         .back-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--muted);
-            cursor: pointer;
-            margin-bottom: 18px;
-            padding: 4px 0;
+            display: inline-flex; align-self: flex-start; align-items: center; gap: 8px;
+            font-size: 14px; color: var(--text-2); cursor: pointer;
         }
+        .back-btn img { width: 16px; height: 16px; }
         .back-btn:hover { color: var(--text); }
-        .sv-icon { font-size: 26px; margin-bottom: 2px; }
-        .sv-title { font-size: 22px; font-weight: 700; margin-bottom: 3px; }
-        .sv-total { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
+        .sv-head { display: flex; align-items: center; gap: 16px; }
+        .sv-head .ico-chip { width: 48px; height: 48px; }
+        .sv-head .ico-chip img { width: 20px; height: 20px; }
+        .sv-head-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .sv-title { font-size: 32px; font-weight: 600; line-height: 40px; letter-spacing: -1.28px; }
+        .sv-total { font-size: 14px; color: var(--text-2); }
 
-        /* ─── TRANSACTION LIST ────────────────────── */
-        .sec-head {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-            color: var(--muted);
-            margin: 24px 0 10px;
+        .sv-strip {
+            display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 0.6fr));
+            background: var(--card); border-radius: 16px; box-shadow: var(--ring);
         }
-        .tx-list { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-        .tx-row {
-            display: flex;
-            align-items: center;
-            padding: 11px 18px;
-            border-bottom: 1px solid var(--border);
+        .sv-hero { padding: 28px 32px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid var(--border); }
+        .sv-hero-amts { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .sv-stat { padding: 28px 24px; display: flex; flex-direction: column; gap: 6px; justify-content: center; border-right: 1px solid var(--border); min-width: 0; }
+        .sv-stat:last-child { border-right: none; }
+        .sv-stat-v { font-size: 24px; font-weight: 600; line-height: 32px; letter-spacing: -0.8px; white-space: nowrap; }
+
+        .sv-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+        .sv-card { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+        .sv-card .chart-title { margin: 0; }
+        .sv-card-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .avg-leg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+        .avg-leg::before { content: ''; width: 14px; border-top: 1.5px dashed var(--muted); }
+        .hist { position: relative; display: flex; align-items: flex-end; gap: 16px; height: 180px; border-bottom: 1px solid var(--border); }
+        .hist-avg { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); z-index: 1; pointer-events: none; }
+        .hist-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; }
+        .hist-v { position: relative; z-index: 2; padding: 0 4px; background: var(--card); font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+        .hist-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--card); box-shadow: inset 0 0 0 1px var(--line-strong); }
+        .hist-bar.cur { box-shadow: none; }
+        .hist-labels { display: flex; gap: 16px; margin-top: -8px; }
+        .hist-labels span { flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+        .sv-card.merch { gap: 12px; }
+        .merch-row { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+        .merch-top { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+        .merch-top span:first-child { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .merch-top span:last-child { font-weight: 600; white-space: nowrap; }
+
+        .sv-tx { display: flex; flex-direction: column; gap: 12px; }
+        .sv-tx-h { display: flex; justify-content: space-between; align-items: baseline; }
+        .sv-tx-h span:last-child { font-size: 14px; color: var(--text-2); }
+        .tx-list { background: var(--card); border-radius: 12px; box-shadow: var(--ring); overflow: hidden; }
+        .tx-head, .tx-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px 120px; gap: 16px; align-items: center; }
+        .tx-head {
+            padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
+            font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; color: var(--muted);
         }
+        .tx-head span:last-child { text-align: right; }
+        .tx-row { padding: 14px 20px; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
         .tx-row:last-child { border-bottom: none; }
-        .tx-m  { flex: 1; font-size: 13px; font-weight: 500; }
-        .tx-d  { font-size: 11px; color: var(--muted); margin-right: 14px; }
-        .tx-a  { font-size: 13px; font-weight: 700; }
-        .tx-a.neg { color: var(--negative); }
+        .tx-m  { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tx-d  { color: var(--muted); }
+        .tx-a  { text-align: right; font-family: var(--mono); white-space: nowrap; }
         .tx-a.pos { color: var(--positive); }
 
         /* ─── RECURRING ───────────────────────────── */
+        #recurring-section .sec-title { margin-bottom: 12px; }   /* setCatMode() sets display:block inline */
+        .rec-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+        .rec-grid .empty-state { grid-column: 1 / -1; background: var(--card); border-radius: 12px; box-shadow: var(--ring); }
         .rec-row {
             display: flex;
             align-items: center;
-            padding: 11px 18px;
-            border-bottom: 1px solid var(--border);
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--ring);
         }
-        .rec-row:last-child { border-bottom: none; }
-        .rec-icon {
-            width: 30px; height: 30px;
-            background: var(--bg);
-            border-radius: 7px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px;
-            margin-right: 11px;
-        }
-        .rec-name { flex: 1; font-size: 13px; font-weight: 600; }
-        .rec-date { font-size: 11px; color: var(--muted); margin-right: 14px; }
-        .rec-amt  { font-size: 13px; font-weight: 700; color: var(--negative); }
+        .rec-info { display: flex; flex-direction: column; min-width: 0; }
+        .rec-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rec-date { font-size: 12px; color: var(--muted); }
+        .rec-amt  { font-family: var(--mono); font-size: 14px; white-space: nowrap; }
 
         /* ─── SAVINGS ─────────────────────────────── */
-        .nw-banner {
-            background: var(--sidebar);
-            border-radius: 14px;
-            padding: 22px 24px;
-            color: white;
-            margin-bottom: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        /* ─── WEALTH LANDING ──────────────────────── */
+        .main[data-tab="wealth"] .period-bar { display: none; }   /* net worth isn't period-based */
+        #tab-wealth.active { padding-top: 32px; }
+        #tab-wealth.active > * + * { margin-top: 24px; }
+        #wealth-landing > * + * { margin-top: 24px; }              /* renderWealth() sets display:block inline */
+        #wealth-landing > .sec-title + #wealth-types { margin-top: 12px; }
+        .nw-hero {
+            background: var(--card); border-radius: 16px; box-shadow: var(--ring); padding: 32px;
+            display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap;
         }
-        .nw-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; opacity: 0.5; margin-bottom: 8px; }
-        .nw-val { font-size: 40px; font-weight: 700; letter-spacing: -1.5px; color: var(--accent); }
-        .nw-change { font-size: 13px; opacity: 0.6; margin-top: 6px; }
+        .nw-l { display: flex; flex-direction: column; gap: 8px; }
+        .nw-val { font-size: 48px; font-weight: 600; line-height: 48px; letter-spacing: -2.4px; }
+        .nw-change { font-size: 14px; font-weight: 500; }
+        .type-row {
+            display: flex; align-items: center; gap: 16px; padding: 20px 24px;
+            background: var(--card); border-radius: 12px; box-shadow: var(--ring); cursor: pointer; transition: background 0.15s;
+        }
+        .type-row:hover { background: var(--bg); }
+        .type-row .ico-chip { width: 40px; height: 40px; }
+        .type-row .ico-chip img { width: 18px; height: 18px; }
+        .type-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .type-name { font-size: 16px; font-weight: 600; letter-spacing: -0.32px; }
+        .type-sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .type-delta { font-size: 13px; font-weight: 500; white-space: nowrap; }
+        .type-val { font-size: 20px; font-weight: 600; letter-spacing: -0.4px; min-width: 100px; text-align: right; white-space: nowrap; }
+        .type-row .cat-arrow { flex-shrink: 0; }
 
-        .acc-card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px 18px;
-            border: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 14px;
+        /* ─── WEALTH DRILL-INS ────────────────────── */
+        #wealth-type > * + *, #wealth-account > * + * { margin-top: 24px; }   /* renderWealth() sets display:block inline */
+        #tab-wealth:has(#wealth-landing[style*="none"]) > .page-h,
+        #tab-wealth:has(#wealth-landing[style*="none"]) > #ins-wealth { display: none; }
+        .crumbs { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); }
+        .crumbs img { width: 16px; height: 16px; }
+        .crumbs a { color: var(--text-2); cursor: pointer; }
+        .crumbs a:hover { color: var(--text); }
+        .crumbs .sep { color: var(--text-4); }
+        .crumbs .here { color: var(--text); font-weight: 500; }
+        .wt-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+        .wt-head-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .wt-sub { font-size: 14px; color: var(--text-2); }
+        .wt-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .btn-s {
+            height: 32px; padding: 0 10px; border: none; border-radius: 6px; background: var(--card); box-shadow: var(--ring);
+            display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap;
         }
-        .acc-type-icon {
-            width: 38px; height: 38px;
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 17px;
-            flex-shrink: 0;
+        .btn-s:hover { background: var(--line-soft); }
+        .btn-s img { width: 14px; height: 14px; }
+        .btn-s.dark { background: var(--text); color: #fff; box-shadow: none; }
+        .btn-s.dark:hover { opacity: 0.88; background: var(--text); }
+        .btn-s.dark img { filter: invert(1); }
+        .acc-list { display: flex; flex-direction: column; gap: 12px; }
+        .acc-row { cursor: default; }
+        .acc-row:hover { background: var(--card); }
+        .acc-row.clickable { cursor: pointer; }
+        .acc-row.clickable:hover { background: var(--bg); }
+        .acc-swatch { width: 10px; height: 40px; border-radius: 3px; flex-shrink: 0; }
+        .acc-tail { display: flex; gap: 6px; flex-shrink: 0; }
+        .icon-btn {
+            width: 32px; height: 32px; border: none; border-radius: 6px; background: var(--card); box-shadow: var(--ring);
+            display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
         }
-        .acc-info { flex: 1; }
-        .acc-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
-        .acc-badge {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            padding: 2px 7px;
-            border-radius: 20px;
-        }
-        .b-isa        { background: rgba(212,166,154,0.18); color: #8B5E52; }
-        .b-savings    { background: rgba(123,166,138,0.18); color: #4A7A5C; }
-        .b-pension    { background: rgba(139,115,85,0.18);  color: #6B5530; }
-        .b-crypto     { background: rgba(214,158,90,0.20);  color: #9A6B22; }
-        .b-investment { background: rgba(100,130,200,0.18); color: #3A5080; }
-        .acc-inst { font-size: 11px; color: var(--muted); margin-top: 2px; }
-        .acc-bal  { font-size: 18px; font-weight: 700; text-align: right; }
-        .acc-ch   { font-size: 11px; text-align: right; margin-top: 2px; }
-
+        .icon-btn img { width: 14px; height: 14px; }
+        .icon-btn:hover { background: var(--line-soft); }
+        .icon-btn.danger:hover { box-shadow: 0 0 0 1px var(--negative); background: var(--negative-bg); }
         .add-acc-btn {
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            width: 100%;
-            padding: 13px;
-            border: 1.5px dashed var(--border);
-            border-radius: 12px;
-            background: transparent;
-            cursor: pointer;
-            font-size: 13px; font-weight: 600;
-            color: var(--muted);
-            transition: all 0.15s;
-            margin-top: 10px;
-            font-family: 'Inter', sans-serif;
+            display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 48px;
+            border: none; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-strong); background: transparent;
+            font-size: 14px; font-weight: 500; color: var(--text-2); cursor: pointer; transition: background 0.15s;
         }
-        .add-acc-btn:hover { border-color: var(--accent); color: var(--text); background: rgba(212,166,154,0.05); }
-
-        /* ─── INVESTMENTS ─────────────────────────── */
-        .acc-card.clickable { cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
-        .acc-card.clickable:hover { border-color: var(--accent); transform: translateY(-1px); }
-        .acc-chev { color: var(--muted); font-size: 18px; margin-left: 4px; }
-        .back-link { font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; margin-bottom: 14px; display: inline-block; }
-        .back-link:hover { color: var(--accent); }
-        .inv-tree-wrap { position: relative; height: 300px; width: 100%; margin-top: 6px; }
+        .add-acc-btn img { width: 16px; height: 16px; }
+        .add-acc-btn:hover { background: var(--card); color: var(--text); }
+        .acc-list + .add-acc-btn { margin-top: 12px; }
+        .wt-section > .sec-title { margin-bottom: 12px; }
+        .inv-tree-wrap { position: relative; height: 204px; width: 100%; }
         .pl-pos { color: var(--positive); }
         .pl-neg { color: var(--negative); }
-        .hold-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-        .wealth-donuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-        .wealth-donuts .chart-card { display: flex; flex-direction: column; }
-        .wealth-donuts .donut-wrap { margin-top: 12px; }
-        .wealth-donuts .legend { margin-top: 14px; }
-        .modal-hint { font-size: 11px; color: var(--muted); margin-top: -6px; margin-bottom: 2px; line-height: 1.5; }
-        .price-bar { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; flex-wrap: wrap; font-size: 12px; }
+
+        .hold-head, .hold-row { display: grid; grid-template-columns: minmax(0, 2fr) 90px 100px 100px 120px 76px; gap: 16px; align-items: center; }
+        .hold-head {
+            padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
+            font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; color: var(--muted);
+        }
+        .hold-head span:not(:first-child) { text-align: right; }
+        .hold-row { padding: 14px 20px; border-bottom: 1px solid var(--line-soft); font-size: 14px; }
+        .hold-row:last-child { border-bottom: none; }
+        .hold-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .hold-bar { width: 8px; height: 32px; border-radius: 2px; flex-shrink: 0; }
+        .hold-txt { display: flex; flex-direction: column; min-width: 0; }
+        .hold-t { font-weight: 600; white-space: nowrap; }
+        .hold-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hold-num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+        .hold-val { text-align: right; font-weight: 600; white-space: nowrap; }
+        .hold-gain { text-align: right; font-weight: 500; white-space: nowrap; }
+        .hold-row .acc-tail { justify-content: flex-end; }
+        .hstat { font-family: var(--mono); font-size: 11px; font-weight: 500; margin-left: 4px; }
+        .hstat.fresh { color: var(--positive); }
+        .hstat.stale { color: var(--warning); }
+        .hstat.manual { color: var(--muted); }
+        .modal-hint { font-size: 12px; line-height: 16px; color: var(--muted); }
+        .test-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        #h-test-result { font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+        #h-test-result img { width: 14px; height: 14px; }
+        .price-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
         .price-bar:empty { display: none; }
-        .price-bar .chip { padding: 5px 12px; }
-        .pb-day { font-weight: 700; }
+        .pb-status { display: inline-flex; align-items: center; gap: 8px; }
+        .pb-dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--warning); flex-shrink: 0; }
+        .pb-dot.fresh { background: var(--positive); }
+        .pb-refresh {
+            height: 32px; padding: 0 10px; border: none; border-radius: 6px; background: var(--card); box-shadow: var(--ring);
+            display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer;
+        }
+        .pb-refresh img { width: 14px; height: 14px; }
+        .pb-refresh:hover:not(:disabled) { background: var(--line-soft); }
+        .pb-refresh:disabled { opacity: 0.5; cursor: default; }
+        .pb-day { font-weight: 500; }
         .pb-when { color: var(--muted); }
-        .hstat { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 6px; vertical-align: middle; }
-        .hstat.fresh { background: var(--positive); }
-        .hstat.stale { background: #D69E5A; }
-        .hstat.manual { background: var(--muted); }
 
         /* ─── MODAL ───────────────────────────────── */
         .overlay {
             position: fixed; inset: 0;
-            background: rgba(44,33,24,0.3);
+            background: rgba(23,23,23,0.45);
             z-index: 300;
             display: none;
             align-items: center;
             justify-content: center;
+            padding: 16px;
         }
         .overlay.open { display: flex; }
         .modal {
-            background: white;
+            background: var(--card);
             border-radius: 16px;
-            padding: 26px;
-            width: 430px;
-            max-width: 92vw;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 2px 2px rgba(0,0,0,0.04), 0 8px 16px -4px rgba(0,0,0,0.04);
+            padding: 28px;
+            width: 440px;
+            max-width: 100%;
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+            display: flex; flex-direction: column; gap: 16px;
         }
-        .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+        #holding-modal .modal { width: 520px; }
+        .modal-title { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.4px; }
+        .modal .fg { margin: 0; }
+        .modal .fr { gap: 12px; }
+        .modal .fr.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        /* trailing field icon (pencil / chevron / building), 14px at 50% */
+        .fic { position: relative; }
+        .fic > img { position: absolute; right: 12px; top: 50%; width: 14px; height: 14px; transform: translateY(-50%); opacity: 0.5; pointer-events: none; }
+        .fic .fi, .fic .fs { padding-right: 34px; }
+        .fs { appearance: none; -webkit-appearance: none; cursor: pointer; }
+        .fi:disabled, .fs:disabled { color: var(--text-4); background: var(--bg); cursor: not-allowed; }
+        .fi::placeholder { color: var(--text-4); }
         .fg { margin-bottom: 14px; }
         .fl {
-            font-size: 10px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.5px;
-            color: var(--muted);
-            display: block; margin-bottom: 5px;
+            display: block; margin-bottom: 6px;
+            font-size: 14px; font-weight: 500; letter-spacing: -0.28px; color: var(--text-2);
         }
+        .fl .hint { font-weight: 400; letter-spacing: 0; color: var(--text-4); }
         .fi, .fs {
-            width: 100%;
-            padding: 9px 11px;
-            border: 1.5px solid var(--border);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: 'Inter', sans-serif;
-            color: var(--text);
-            background: var(--bg);
+            width: 100%; height: 40px; padding: 0 12px;
+            border: none; border-radius: 6px; box-shadow: var(--ring);
+            font-size: 14px; color: var(--text); background: var(--card);
         }
-        .fi:focus, .fs:focus { outline: none; border-color: var(--accent); background: white; }
+        .fi:focus, .fs:focus { outline: none; box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px rgba(0,112,243,0.15); }
         .fr { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
         .pfx { position: relative; }
-        .pfx-sym { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--muted); font-weight: 600; pointer-events: none; }
-        .pfx .fi { padding-left: 22px; }
-        .modal-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }
+        .pfx-sym { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--muted); pointer-events: none; }
+        .pfx .fi { padding-left: 26px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; }
+        .modal-actions .btn-p, .modal-actions .btn-g { height: 32px; padding: 0 12px; }
         .btn-p {
-            background: var(--text); color: white; border: none;
-            border-radius: 8px; padding: 9px 18px;
-            font-size: 13px; font-weight: 600; cursor: pointer;
-            font-family: 'Inter', sans-serif; transition: opacity 0.15s;
+            background: var(--text); color: #fff; border: none;
+            border-radius: 6px; height: 40px; padding: 0 16px;
+            font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+            transition: opacity 0.15s;
         }
         .btn-p:hover { opacity: 0.85; }
         .btn-g {
-            background: transparent; color: var(--muted);
-            border: 1.5px solid var(--border);
-            border-radius: 8px; padding: 9px 18px;
-            font-size: 13px; font-weight: 600; cursor: pointer;
-            font-family: 'Inter', sans-serif;
+            background: var(--card); color: var(--text);
+            border: none; box-shadow: var(--ring);
+            border-radius: 6px; height: 40px; padding: 0 16px;
+            font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
         }
+        .btn-g:hover:not(:disabled) { background: var(--line-soft); }
+        .btn-g:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* ─── INCOME ESTIMATOR ────────────────────── */
-        .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-        .role-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--border);
+        .main[data-tab="income"] .period-bar { display: none; }   /* estimator isn't period-based */
+        #tab-income.active { display: flex; flex-direction: column; gap: 24px; padding-top: 32px; }
+        .inc-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .inc-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+        .inc-col { display: flex; flex-direction: column; gap: 16px; }
+        .role-card { background: var(--card); border-radius: 12px; box-shadow: var(--ring); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+        .role-head { display: flex; flex-direction: column; gap: 2px; }
+        .role-title { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.4px; }
+        .role-title.sm { font-size: 16px; line-height: 24px; letter-spacing: -0.32px; }
+        .role-sub   { font-size: 13px; color: var(--muted); }
+        .inc-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+        .inc-fields .fg { margin: 0; display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; align-items: end; }
+        .inc-fields .field-note { align-self: start; }
+        .inc-fields .fg:nth-child(n+3) { margin-top: 12px; }
+        .inc-fields .fl { font-size: 13px; letter-spacing: -0.26px; }
+        .field-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+        .calc-box { border-radius: 6px; background: var(--bg); box-shadow: var(--ring); padding: 4px 16px; }
+        .calc-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--line-soft); }
+        .calc-row:last-child { border-bottom: none; }
+        .calc-row span:first-child { color: var(--text-2); }
+        .calc-row span:last-child { font-family: var(--mono); color: var(--text); white-space: nowrap; }
+        .sched-rows .calc-row { padding: 6px 0; }
+        .sched-rows .calc-row span:last-child { font-family: var(--font); font-weight: 500; }
+        .inc-note { font-size: 12px; line-height: 18px; color: var(--muted); }
+        .chk-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; line-height: 18px; color: var(--muted); cursor: pointer; }
+        .chk {
+            appearance: none; -webkit-appearance: none; width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px;
+            border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--card); cursor: pointer;
         }
-        .role-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-        .role-sub   { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
-        .calc-box {
-            background: var(--bg);
-            border-radius: 9px;
-            padding: 14px;
-            margin-top: 10px;
+        .chk:checked {
+            box-shadow: none; background: var(--text) center / 12px no-repeat
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
         }
-        .calc-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: var(--muted);
-            padding: 2px 0;
-        }
-        .calc-row span:last-child { font-weight: 600; color: var(--text); }
+        .chk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-        .combined-banner {
-            background: var(--sidebar);
-            border-radius: 14px;
-            padding: 22px 24px;
-            color: white;
-            margin-bottom: 14px;
-        }
-        .cb-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; opacity: 0.5; margin-bottom: 16px; }
-        .cb-rows  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }
-        .cb-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            opacity: 0.7;
-            padding: 2px 0;
-        }
-        .cb-row span:last-child { font-weight: 600; }
+        .combined-banner { background: var(--sidebar); color: #fff; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 4px; }
+        .cb-title { font-size: 14px; font-weight: 500; color: #fff; margin-bottom: 8px; }
+        .cb-rows  { display: flex; flex-direction: column; }
+        .cb-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .cb-row span:first-child { color: var(--text-4); }
+        .cb-row > span:last-child { font-family: var(--mono); white-space: nowrap; }
+        .cb-row .note { color: #6b6b6b; }
         .dark-inp {
-            width: 42px; margin: 0 3px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px; color: white;
-            font-family: 'Inter', sans-serif; font-size: 12px;
-            padding: 1px 4px; text-align: center;
+            width: 44px; height: 24px; margin: 0 4px; padding: 0 4px;
+            background: rgba(255,255,255,0.08); border: none; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+            color: #fff; font-size: 13px; text-align: center;
         }
-        .dark-inp:focus { outline: none; border-color: var(--accent); }
-        .cb-row.net {
-            grid-column: 1 / -1;
-            font-size: 15px;
-            font-weight: 700;
-            opacity: 1;
-            border-top: 1px solid rgba(255,255,255,0.15);
-            margin-top: 8px;
-            padding-top: 12px;
-        }
+        .dark-inp:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+        .cb-row.net { align-items: baseline; padding: 12px 0 0; border-bottom: none; }
+        .cb-row.net span:first-child { color: #fff; font-weight: 500; }
+        .cb-row.net > span:last-child { font-family: var(--font); font-size: 24px; font-weight: 600; letter-spacing: -0.8px; }
 
-        .cash-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border); margin-bottom: 14px; }
-        .cash-row {
-            display: flex; align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        .cash-row:last-of-type { border-bottom: none; }
-        .cash-lbl { flex: 1; font-size: 13px; font-weight: 500; }
+        .cash-rows { display: flex; flex-direction: column; gap: 10px; }
+        .cash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; }
+        .cash-lbl { color: var(--text-2); }
+        .cash-row .pfx { width: 110px; flex-shrink: 0; }
         .cash-inp {
-            width: 110px; padding: 6px 10px;
-            border: 1.5px solid var(--border); border-radius: 6px;
-            font-size: 13px; font-family: 'Inter', sans-serif; text-align: right;
-            background: var(--bg); color: var(--text);
+            width: 100%; height: 32px; padding: 0 10px 0 24px; border: none; border-radius: 6px; box-shadow: var(--ring);
+            font-size: 14px; background: var(--card); color: var(--text);
         }
-        .cash-inp:focus { outline: none; border-color: var(--accent); background: white; }
-        .cash-total-row {
-            display: flex; align-items: center;
-            padding: 10px 0 2px;
-            border-top: 1px solid var(--border);
-            margin-top: 4px;
-        }
+        .cash-row .pfx-sym { left: 10px; }
+        .cash-inp:focus { outline: none; box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px rgba(0,112,243,0.15); }
+        .tot-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 14px; }
+        .tot-row span:first-child { font-weight: 600; }
+        .tot-row.big span:first-child { font-weight: 500; }
+        .tot-row .gt { font-size: 24px; font-weight: 600; letter-spacing: -0.8px; }
+        .gt-rows { display: flex; flex-direction: column; gap: 10px; }
+        .gt-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+        .gt-row span:first-child { color: var(--text-2); }
+        .gt-row span:last-child { font-family: var(--mono); }
+        .target-row { display: flex; gap: 8px; margin-top: 8px; }
+        .target-row .fs { flex: 1; height: 32px; padding: 0 10px; color: var(--text-2); }
+        .target-row .btn-p { height: 32px; padding: 0 12px; }
 
         /* Small inline edit/delete button (Wealth accounts + holdings) */
         .log-del {
-            background: none; border: 1px solid var(--border); border-radius: 4px;
-            color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1;
-            padding: 3px 6px; font-family: 'Inter', sans-serif;
+            background: var(--card); border: none; box-shadow: var(--ring); border-radius: 6px;
+            color: var(--text-2); cursor: pointer; font-size: 13px; line-height: 1; padding: 4px 8px;
         }
-        .log-del:hover { border-color: var(--negative); color: var(--negative); }
+        .log-del:hover { box-shadow: 0 0 0 1px var(--negative); color: var(--negative); }
 
         /* ─── RESPONSIVE ──────────────────────────── */
         @media (max-width: 1000px) {
-            .cat-kpi-grid { grid-template-columns: 1fr 1fr; }
             .overview-bottom { grid-template-columns: 1fr; }
         }
         @media (max-width: 900px) {
             .wealth-donuts { grid-template-columns: 1fr; }
         }
         @media (max-width: 800px) {
-            .g2, .g3, .g4, .est-grid { grid-template-columns: 1fr; }
-            .cb-rows { grid-template-columns: 1fr; }
-            .cb-row.net { grid-column: 1; }
+            .g2, .g3, .g4, .est-grid, .inc-grid, .inc-grid-2 { grid-template-columns: 1fr; }
         }
         @media (max-width: 640px) {
             :root { --sw: 0px; }
@@ -742,122 +827,209 @@
                 padding: 6px 2px; margin: 0;
                 font-size: 9px; text-align: center;
             }
-            .nav-item span:not(.nav-icon) {
+            .nav-item span {
                 max-width: 100%; line-height: 1.1;
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             }
-            .nav-icon { font-size: 18px; width: auto; }
+            .nav-item { height: auto; font-size: 10px; }
+            .nav-icon { width: 18px; height: 18px; }
             /* Connect/Refresh kept reachable as a compact icon cell */
             .sidebar-foot {
                 margin: 0; padding: 0 2px;
                 flex: 0 0 auto;
-                display: flex; align-items: center; justify-content: center;
+                align-items: center; justify-content: center;
             }
-            .signin-btn { width: 42px; height: 42px; padding: 0; font-size: 0; border-radius: 11px; }
-            .signin-btn::before { content: "🔗"; font-size: 18px; }
+            .signin-btn {
+                width: 40px; height: 40px; padding: 0; font-size: 0; border-radius: 6px;
+                background: #fff url("https://unpkg.com/lucide-static@0.460.0/icons/link.svg") center / 18px no-repeat;
+            }
             .conn-row { display: none; }
 
-            .main { margin-left: 0; padding-bottom: 72px; }
-            .page { padding: 16px 14px 30px; }
-            .period-bar { padding: 9px 14px; }
+            .main { margin-left: 0; padding: 0 16px 88px; }
+            .period-bar { padding: 16px 0; top: 0; flex-wrap: nowrap; }
+            .page-title { display: none; }
+            .ov-hero-main, .ov-hero-side-in { padding: 24px; }
             /* KPI cards: 3-up, compact, avoids the orphan a 2-col leaves */
-            .cat-kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-            .ckpi { padding: 12px 10px; }
-            .ckpi-val { font-size: 16px; letter-spacing: -0.3px; }
-            .bgt-row { grid-template-columns: 26px 1fr auto; }
-            .bgt-row .bgt-inp-wrap { grid-column: 2 / 4; justify-self: end; }
-            .bgt-kpis { grid-template-columns: repeat(2, 1fr); }
+            .cat-kpi-grid { grid-template-columns: 1fr; }
+            .ckpi { border-right: none; border-bottom: 1px solid var(--border); padding: 16px 20px; }
+            .ckpi:last-child { border-bottom: none; }
+            .ckpi-val { font-size: 24px; line-height: 32px; letter-spacing: -0.8px; }
+            .acc-row .type-delta { display: none; }
+            #tab-budget.active, #tab-wealth.active, #tab-income.active { padding-top: 16px; }
+            #tab-categories:has(#cat-subview.active) { padding-top: 16px; }
+            .sv-title { font-size: 24px; line-height: 32px; letter-spacing: -0.8px; }
+            .sv-hero { padding: 24px; }
+            .inc-fields { grid-template-columns: 1fr; }
+            .inc-fields .fg:nth-child(n+2) { margin-top: 12px; }
+            .nw-hero { padding: 24px; }
+            .nw-val { font-size: 40px; line-height: 40px; letter-spacing: -1.8px; }
+            .type-row { padding: 16px; gap: 12px; }
+            .type-delta { display: none; }
+            .bgt-title, .page-h { font-size: 24px; line-height: 32px; letter-spacing: -0.8px; }
+            .bgt-period { margin-left: 4px; }
         }
 
         /* ─── BUDGET TAB ──────────────────────────── */
-        .bgt-stepper { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+        /* Budget has its own stepper and ignores the global period, so the chip header is hidden */
+        .main[data-tab="budget"] .period-bar { display: none; }
+        #tab-budget.active { display: flex; flex-direction: column; gap: 24px; padding-top: 32px; }
+        .bgt-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .bgt-head-l { display: flex; flex-direction: column; gap: 8px; }
+        .bgt-title, .page-h { font-size: 32px; font-weight: 600; line-height: 40px; letter-spacing: -1.28px; }
+        .bgt-sub { font-size: 14px; color: var(--muted); }
+        .bgt-stepper { display: flex; align-items: center; gap: 8px; }
         .bgt-step {
-            width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
-            background: var(--card); color: var(--muted); font-size: 16px; cursor: pointer;
+            width: 32px; height: 32px; border-radius: 9999px; border: none; box-shadow: var(--ring);
+            background: var(--card); cursor: pointer;
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .bgt-step:hover:not(:disabled) { background: var(--bg); color: var(--text); }
-        .bgt-step:disabled { opacity: 0.35; cursor: default; }
-        .bgt-period { font-size: 13px; font-weight: 600; }
-        .bgt-period small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+        .bgt-step img { width: 16px; height: 16px; }
+        .bgt-step:hover:not(:disabled) { background: var(--line-soft); }
+        .bgt-step:disabled { opacity: 0.4; cursor: default; }
+        .bgt-period { font-size: 14px; font-weight: 500; margin-left: 8px; }
 
+        .bgt-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 16px; }
         .bgt-safe {
-            background: var(--sidebar); color: #fff; border-radius: 14px;
-            padding: 22px 24px; margin-bottom: 14px;
-            display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+            background: var(--sidebar); color: #fff; border-radius: 16px; padding: 28px;
+            display: flex; flex-direction: column; justify-content: center; gap: 8px;
         }
-        .bgt-safe-l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: rgba(255,255,255,0.6); }
-        .bgt-safe-v { font-size: 34px; font-weight: 700; letter-spacing: -1.2px; color: var(--accent); line-height: 1.1; margin-top: 6px; }
-        .bgt-safe-sub { font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 6px; }
-        .bgt-safe.over .bgt-safe-v { color: #E8A99B; }
+        .bgt-safe-l { font-family: var(--mono); font-size: 12px; font-weight: 500; text-transform: uppercase; color: var(--text-4); }
+        .bgt-safe-v { font-size: 48px; font-weight: 600; line-height: 48px; letter-spacing: -2.4px; }
+        .bgt-safe-v .per { font-size: 20px; letter-spacing: -0.4px; color: var(--text-4); }
+        .bgt-safe-sub { font-size: 14px; color: var(--text-4); }
+        .bgt-safe.over .bgt-safe-v { color: #ff4d4d; }
 
-        .bgt-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-        .bgt-kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-        .bgt-kpi-l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-        .bgt-kpi-v { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; margin-top: 6px; }
-        .bgt-kpi-sub { font-size: 11px; margin-top: 3px; color: var(--muted); }
+        .bgt-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        .bgt-kpi { background: var(--card); box-shadow: var(--ring); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 4px; }
+        .bgt-kpi-l { font-size: 12px; color: var(--muted); }
+        .bgt-kpi-v { font-size: 24px; font-weight: 600; line-height: 32px; letter-spacing: -0.8px; }
+        .bgt-kpi-sub { font-size: 12px; color: var(--muted); }
 
-        .bgt-total-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
-        .bgt-total-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-        .bgt-total-top b { font-size: 15px; }
-        .bgt-total-days { font-size: 11px; color: var(--muted); }
+        .bgt-total-card { background: var(--card); box-shadow: var(--ring); border-radius: 12px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+        .bgt-total-top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; font-size: 14px; }
+        .bgt-total-top b { font-weight: 600; }
+        .bgt-total-days { color: var(--muted); }
 
-        .bgt-sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin: 18px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
-        .bgt-sec-title span:last-child { color: var(--text); }
+        .bgt-group { display: flex; flex-direction: column; gap: 12px; }
+        .bgt-sec-title { display: flex; justify-content: space-between; align-items: baseline; }
+        .bgt-sec-title span:first-child { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.4px; }
+        .bgt-sec-title span:last-child { font-size: 14px; color: var(--text-2); }
+        .bgt-rows { background: var(--card); box-shadow: var(--ring); border-radius: 12px; overflow: hidden; }
 
         .bgt-row {
-            display: grid; grid-template-columns: 30px 1fr 132px 96px; align-items: center; gap: 12px;
-            background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-            padding: 12px 16px; margin-bottom: 7px;
+            display: grid; grid-template-columns: 32px 180px minmax(0, 1fr) 132px 150px; gap: 16px; align-items: center;
+            padding: 14px 20px; border-bottom: 1px solid var(--line-soft);
         }
-        .bgt-icon { font-size: 17px; }
-        .bgt-name { font-size: 13px; font-weight: 600; }
-        .bgt-proj { font-size: 11px; color: var(--muted); margin-top: 2px; }
-        .bgt-fig { text-align: right; font-size: 12px; }
-        .bgt-fig b { font-size: 13px; }
-        .bgt-fig .ou { font-weight: 700; }
+        .bgt-row:last-child { border-bottom: none; }
+        .bgt-icon { width: 32px; height: 32px; }
+        .bgt-icon img { width: 16px; height: 16px; }
+        .bgt-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bgt-proj { font-size: 12px; color: var(--muted); }
+        .bgt-fig { text-align: right; font-size: 14px; white-space: nowrap; }
+        .bgt-fig b { font-weight: 600; }
+        .bgt-fig .of { color: var(--muted); }
+        .bgt-fig .ou { font-size: 12px; font-weight: 500; }
         .ou.under { color: var(--positive); }
         .ou.over { color: var(--negative); }
 
-        .bgt-bar { position: relative; height: 7px; border-radius: 4px; background: var(--border); margin-top: 7px; overflow: visible; }
-        .bgt-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; transition: width 0.3s; }
-        .bgt-bar-fill.under { background: var(--positive); }
-        .bgt-bar-fill.near  { background: var(--accent); }
+        .bgt-bar { position: relative; height: 8px; border-radius: 9999px; background: var(--line-soft); }
+        .bgt-total-card .bgt-bar { height: 10px; }
+        .bgt-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9999px; transition: width 0.3s; }
+        .bgt-bar-fill.under { background: var(--text); }
+        .bgt-bar-fill.near  { background: var(--warning); }
         .bgt-bar-fill.over  { background: var(--negative); }
-        .bgt-pace { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: 0.5; border-radius: 2px; }
+        .bgt-pace { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--accent); }
+        .bgt-total-card .bgt-pace { top: -5px; bottom: -5px; }
 
-        .bgt-inp-wrap { position: relative; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
-        .bgt-inp {
-            width: 74px; border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px 6px 16px;
-            font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text); text-align: right; background: var(--bg);
+        .bgt-inp-wrap {
+            display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px;
+            border-radius: 6px; background: var(--card); box-shadow: var(--ring);
         }
-        .bgt-inp-wrap::before { content: '£'; position: absolute; left: 8px; font-size: 12px; color: var(--muted); pointer-events: none; }
-        .bgt-inp.ov { border-color: var(--accent); background: rgba(212,166,154,0.08); }
-        .bgt-reset { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px; }
-        .bgt-reset:hover { color: var(--text); }
-        .bgt-auto { font-size: 10px; color: var(--muted); text-align: right; margin-top: 3px; }
+        .bgt-inp-wrap:focus-within { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px rgba(0,112,243,0.15); }
+        .bgt-cur { font-size: 13px; color: var(--muted); }
+        .bgt-inp {
+            flex: 1; min-width: 0; width: 100%; border: none; outline: none; background: none; padding: 0;
+            font-size: 14px; color: var(--text); -moz-appearance: textfield;
+        }
+        .bgt-inp::-webkit-inner-spin-button, .bgt-inp::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .bgt-tag { font-size: 11px; color: var(--text-4); }
+        .bgt-reset { border: none; background: none; cursor: pointer; padding: 0; display: flex; opacity: 0.5; }
+        .bgt-reset img { width: 14px; height: 14px; }
+        .bgt-reset:hover { opacity: 1; }
+        .bgt-auto { font-size: 11px; color: var(--muted); text-align: right; margin-top: 4px; }
 
         .ckpi-budget { font-size: 11px; font-weight: 700; margin-top: 5px; }
         .ckpi-budget.under { color: var(--positive); }
         .ckpi-budget.over { color: var(--negative); }
 
         /* ─── INSIGHTS STRIP ──────────────────────── */
-        .insight-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+        .insight-strip { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 2px; }
         .insight-strip:empty { display: none; }
         .insight-card {
-            flex: 1 1 0; min-width: 210px; background: var(--card); border: 1px solid var(--border);
-            border-left-width: 4px; border-radius: 10px; padding: 12px 14px; cursor: pointer;
+            flex: 1 1 0; min-width: 210px; background: var(--card); box-shadow: var(--ring);
+            border-radius: 12px; padding: 16px 20px; cursor: pointer;
             display: flex; gap: 10px; align-items: flex-start; transition: background 0.15s;
         }
         .insight-card:hover { background: var(--bg); }
-        .insight-card.good { border-left-color: var(--positive); }
-        .insight-card.warn { border-left-color: var(--accent); }
-        .insight-card.bad  { border-left-color: var(--negative); }
-        .insight-card.info { border-left-color: var(--muted); }
-        .insight-ico { font-size: 16px; line-height: 1.3; flex-shrink: 0; }
-        .insight-txt { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.35; }
+        .insight-dot { width: 8px; height: 8px; margin-top: 6px; flex-shrink: 0; border-radius: 9999px; background: var(--accent); }
+        .insight-card.good .insight-dot { background: var(--positive); }
+        .insight-card.warn .insight-dot { background: var(--warning); }
+        .insight-card.bad  .insight-dot { background: var(--negative); }
+        .insight-card.info .insight-dot { background: var(--accent); }
+        .insight-txt { font-size: 13px; line-height: 20px; color: var(--text-2); text-wrap: pretty; }
+        /* Overview: insights sit as a plain list inside the side card */
+        .side-card .insight-strip { flex-direction: column; gap: 12px; overflow: visible; padding: 0; }
+        .side-card .insight-card { min-width: 0; padding: 0; box-shadow: none; border-radius: 0; background: none; }
+        .side-card .insight-card:hover .insight-txt { color: var(--text); }
         @media (max-width: 812px) {
             .insight-card { min-width: 80%; }
+        }
+        @media (max-width: 1000px) {
+            .ov-hero { grid-template-columns: 1fr; }
+            .ov-hero-side { border-left: none; border-top: 1px solid var(--border); min-height: 140px; }
+            .ov-cols { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 900px) {
+            .wealth-donuts { grid-template-columns: 1fr; }
+            .rec-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 1000px) {
+            .hold-head { display: none; }
+            .hold-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name val tail" "name gain tail"; row-gap: 2px; }
+            .hold-row > .hold-name { grid-area: name; } .hold-row > .hold-val { grid-area: val; }
+            .hold-row > .hold-gain { grid-area: gain; font-size: 13px; } .hold-row > .acc-tail { grid-area: tail; }
+            .hold-row > .hold-num { display: none; }
+            .sv-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .sv-hero { grid-column: 1 / -1; border-right: none; border-bottom: 1px solid var(--border); }
+            .sv-cols { grid-template-columns: 1fr; }
+            .bgt-top { grid-template-columns: 1fr; }
+            .bgt-row { grid-template-columns: 32px minmax(0, 1fr) 132px 150px; }
+            .bgt-row > .bgt-icon { grid-row: 1 / 3; align-self: start; }
+            .bgt-row > .bgt-bar { grid-column: 2 / -1; grid-row: 2; }
+        }
+        @media (max-width: 800px) {
+            .bgt-row { grid-template-columns: 32px minmax(0, 1fr) 120px; }
+            .modal { padding: 20px; }
+            .modal .fr, .modal .fr.three { grid-template-columns: 1fr; }
+            .sv-strip { grid-template-columns: 1fr; }
+            .sv-stat { border-right: none; border-bottom: 1px solid var(--border); padding: 16px 24px; }
+            .sv-stat:last-child { border-bottom: none; }
+            .tx-head, .tx-row { grid-template-columns: minmax(0, 1fr) 64px 96px; gap: 12px; }
+            .hist, .hist-labels { gap: 8px; }
+            .bgt-row > .bgt-inp-col { grid-column: 2 / -1; grid-row: 3; justify-self: end; width: 150px; }
+            .donut-body { flex-direction: column; align-items: stretch; }
+            .donut-body .donut-wrap { align-self: center; }
+            .cat-row { grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-areas: "ico info amt" "ico bar status"; row-gap: 8px; }
+            .cat-row > .cat-icon { grid-area: ico; align-self: start; } .cat-info { grid-area: info; } .cat-amt { grid-area: amt; }
+            .share-bar { grid-area: bar; } .cat-row > .cat-pct { grid-area: status; } .cat-arrow { display: none; }
+            .rec-grid { grid-template-columns: 1fr; }
+            .kpi-strip { grid-template-columns: 1fr; }
+            .kpi-cell { border-right: none; border-bottom: 1px solid var(--border); }
+            .kpi-cell:last-child { border-bottom: none; }
+            .ledger-head { display: none; }
+            .ledger-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name spent" "bar status"; row-gap: 10px; }
+            .lr-name { grid-area: name; } .lr-spent { grid-area: spent; }
+            .lr-bar { grid-area: bar; } .lr-status { grid-area: status; } .lr-mom { display: none; }
         }
     </style>
 </head>
@@ -867,26 +1039,26 @@
 <nav class="sidebar">
     <div class="brand">
         <div class="brand-name">Emma Dashboard</div>
-        <div class="brand-sub">Personal Finance</div>
+        <div class="brand-sub">Personal finance</div>
     </div>
     <div class="nav-item active" onclick="switchTab('overview',this)">
-        <span class="nav-icon">◈</span>
+        <img class="nav-icon" src="https://unpkg.com/lucide-static@0.460.0/icons/layout-dashboard.svg" alt="">
         <span>Overview</span>
     </div>
     <div class="nav-item" onclick="switchTab('categories',this)">
-        <span class="nav-icon">◉</span>
+        <img class="nav-icon" src="https://unpkg.com/lucide-static@0.460.0/icons/chart-pie.svg" alt="">
         <span>Categories</span>
     </div>
     <div class="nav-item" onclick="switchTab('budget',this)">
-        <span class="nav-icon">▦</span>
+        <img class="nav-icon" src="https://unpkg.com/lucide-static@0.460.0/icons/gauge.svg" alt="">
         <span>Budget</span>
     </div>
     <div class="nav-item" onclick="switchTab('wealth',this)">
-        <span class="nav-icon">◆</span>
+        <img class="nav-icon" src="https://unpkg.com/lucide-static@0.460.0/icons/landmark.svg" alt="">
         <span>Wealth</span>
     </div>
     <div class="nav-item" onclick="switchTab('income',this)">
-        <span class="nav-icon">⚑</span>
+        <img class="nav-icon" src="https://unpkg.com/lucide-static@0.460.0/icons/banknote.svg" alt="">
         <span>Income</span>
     </div>
     <div class="sidebar-foot">
@@ -903,8 +1075,9 @@
 
 <!-- ── PERIOD BAR ────────────────────────────────── -->
 <div class="period-bar">
+    <h1 class="page-title" id="page-title">Overview</h1>
     <span class="period-label">Period</span>
-    <button class="chip active" data-mode="pay" onclick="setPeriod('pay',this)">Pay Period</button>
+    <button class="chip active" data-mode="pay" onclick="setPeriod('pay',this)">Pay period</button>
     <div class="prev-wrap">
         <button class="chip" id="prev-chip" onclick="togglePrev()">Previous ▾</button>
         <div class="prev-dd" id="prev-dd"></div>
@@ -918,75 +1091,66 @@
 
 <!-- ══════════════════════════════ TAB 1: OVERVIEW ══ -->
 <div class="page active" id="tab-overview">
-    <p class="page-meta" id="ov-meta">—</p>
+    <!-- Not shown in the 1c layout; kept so renderOverview()/renderLine() still have their targets -->
+    <div hidden>
+        <p class="page-meta" id="ov-meta">—</p>
+        <div class="chart-box" style="height:188px"><canvas id="lineChart"></canvas></div>
+    </div>
 
-    <!-- Hero KPIs -->
-    <div class="g3">
-        <div class="hero-card income">
-            <div class="card-label">Income</div>
-            <div class="hero-row">
-                <div class="hero-value pos" id="hero-income">—</div>
-                <div class="hero-right">
-                    <span class="mom dg" id="hero-income-mom">—</span>
-                    <div class="mom-sub" id="hero-income-sub">—</div>
-                </div>
+    <!-- Hero: spent vs budget + est. income on the mesh panel -->
+    <div class="ov-hero">
+        <div class="ov-hero-main">
+            <span class="eyebrow" id="ov-hero-eyebrow">Spent vs budget</span>
+            <div class="ov-hero-amts">
+                <span class="ov-hero-amt" id="ov-hero-spent">—</span>
+                <span class="ov-hero-of" id="ov-hero-of"></span>
             </div>
+            <div class="bar bar-lg" id="ov-hero-bar"><div class="bar-fill" id="ov-hero-fill"></div><div class="bar-pace" id="ov-hero-pace"></div></div>
+            <span class="ov-hero-line" id="ov-hero-line">—</span>
         </div>
-        <div class="hero-card spending">
-            <div class="card-label">Spending</div>
-            <div class="hero-row">
-                <div class="hero-value neg" id="hero-spend">—</div>
-                <div class="hero-right">
-                    <span class="mom dg" id="hero-spend-mom">—</span>
-                    <div class="mom-sub" id="hero-spend-sub">—</div>
-                </div>
-            </div>
-        </div>
-        <div class="hero-card estimated">
-            <div class="card-label">Est. income · next period</div>
-            <div class="hero-row">
-                <div class="hero-value est" id="next-income-val">—</div>
-                <div class="hero-right">
-                    <span class="mom dg" id="next-income-mom">—</span>
-                    <div class="mom-sub" id="next-income-sub">—</div>
-                </div>
+        <div class="ov-hero-side">
+            <div class="mesh"></div>
+            <div class="ov-hero-side-in">
+                <span class="ov-side-l">Est. income · next period</span>
+                <span class="ov-side-v" id="next-income-val">—</span>
+                <span class="ov-side-d" id="next-income-mom">—</span>
+                <span hidden id="next-income-sub">—</span>
             </div>
         </div>
     </div>
 
-    <div class="insight-strip gap" id="ins-overview"></div>
-
-    <!-- Spend over time + period compare -->
-    <div class="g2 gap">
-        <div class="chart-card">
-            <div class="chart-title">Spend over time</div>
-            <div class="chart-box" style="height:188px">
-                <canvas id="lineChart"></canvas>
-            </div>
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+        <div class="kpi-cell">
+            <span class="kpi-l">Income</span>
+            <div class="kpi-row"><span class="kpi-v pos" id="hero-income">—</span><span class="kpi-d" id="hero-income-mom">—</span></div>
+            <span hidden id="hero-income-sub">—</span>
         </div>
-        <div class="card" style="display:flex;flex-direction:column;gap:9px">
-            <div class="chart-title" style="margin-bottom:2px">Period comparison</div>
-            <div class="pblock">
-                <div class="pblock-label">Last period</div>
-                <div class="pblock-range" id="pc-last-range">—</div>
-                <div class="pblock-amount" id="pc-last-amt">—</div>
-            </div>
-            <div class="pblock">
-                <div class="pblock-label">This period</div>
-                <div class="pblock-range" id="pc-this-range">—</div>
-                <div class="pblock-amount" id="pc-this-amt">—</div>
-            </div>
-            <div class="pdiff">
-                <span class="pdiff-label">Difference</span>
-                <span class="pdiff-val" id="pc-diff">—</span>
-            </div>
+        <div class="kpi-cell">
+            <span class="kpi-l">Spending</span>
+            <div class="kpi-row"><span class="kpi-v" id="hero-spend">—</span><span class="kpi-d" id="hero-spend-mom">—</span></div>
+            <span hidden id="hero-spend-sub">—</span>
         </div>
     </div>
 
-    <!-- Category KPI cards -->
-    <div class="gap">
-        <div class="chart-title" style="margin-bottom:11px">Category breakdown</div>
-        <div class="cat-kpi-grid" id="cat-kpi-grid"></div>
+    <!-- Ledger + side column -->
+    <div class="ov-cols">
+        <div class="ledger">
+            <div class="ledger-head"><span>Category</span><span class="r">Spent</span><span>vs budget</span><span class="r">vs last</span><span class="r">Status</span></div>
+            <div id="cat-kpi-grid"></div>
+        </div>
+        <div class="ov-side">
+            <div class="side-card">
+                <span class="eyebrow">Insights</span>
+                <div class="insight-strip" id="ins-overview"></div>
+            </div>
+            <div class="side-card">
+                <span class="eyebrow">Period Comparison</span>
+                <div class="pc-row"><span id="pc-last-range">—</span><span id="pc-last-amt">—</span></div>
+                <div class="pc-row"><span id="pc-this-range">—</span><span id="pc-this-amt">—</span></div>
+                <div class="pc-row pc-diff"><span>Difference</span><span id="pc-diff">—</span></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -995,15 +1159,15 @@
 
     <!-- List view -->
     <div id="cat-list-view">
-        <div class="insight-strip" id="ins-categories" style="margin:20px 0 0"></div>
-        <div class="toggle-group" style="margin:20px 0 14px">
+        <div class="insight-strip" id="ins-categories"></div>
+        <div class="toggle-group">
             <div class="tog-btn active" id="cm-spend" onclick="setCatMode('spend')">Spending</div>
             <div class="tog-btn" id="cm-income" onclick="setCatMode('income')">Income</div>
         </div>
         <!-- Single donut (Income mode) -->
-        <div class="chart-card" id="donut-single" style="display:none;gap:28px;align-items:center;flex-wrap:wrap">
-            <div>
-                <div class="chart-title" id="donut-title">By category</div>
+        <div class="chart-card donut-card" id="donut-single" style="display:none">
+            <div class="chart-title" id="donut-title">By Category</div>
+            <div class="donut-body">
                 <div class="donut-wrap">
                     <canvas id="donutChart"></canvas>
                     <div class="donut-center" id="donut-center">
@@ -1011,168 +1175,209 @@
                         <div class="donut-cl">total</div>
                     </div>
                 </div>
+                <div class="legend" id="legend"></div>
             </div>
-            <div class="legend" id="legend" style="flex:1;min-width:200px;margin-top:0"></div>
         </div>
         <!-- Split donuts (Spending mode): Fixed + Variable -->
         <div class="g2" id="donut-split">
-            <div class="chart-card">
-                <div class="chart-title">Fixed expenses</div>
-                <div class="donut-wrap">
-                    <canvas id="donutFixed"></canvas>
-                    <div class="donut-center" id="center-fixed"><div class="donut-cv">—</div><div class="donut-cl">fixed</div></div>
+            <div class="chart-card donut-card">
+                <div class="chart-title">Fixed Expenses</div>
+                <div class="donut-body">
+                    <div class="donut-wrap">
+                        <canvas id="donutFixed"></canvas>
+                        <div class="donut-center" id="center-fixed"><div class="donut-cv">—</div><div class="donut-cl">fixed</div></div>
+                    </div>
+                    <div class="legend" id="legend-fixed"></div>
                 </div>
-                <div class="legend" id="legend-fixed"></div>
             </div>
-            <div class="chart-card">
-                <div class="chart-title">Variable expenses</div>
-                <div class="donut-wrap">
-                    <canvas id="donutVar"></canvas>
-                    <div class="donut-center" id="center-var"><div class="donut-cv">—</div><div class="donut-cl">variable</div></div>
+            <div class="chart-card donut-card">
+                <div class="chart-title">Variable Expenses</div>
+                <div class="donut-body">
+                    <div class="donut-wrap">
+                        <canvas id="donutVar"></canvas>
+                        <div class="donut-center" id="center-var"><div class="donut-cv">—</div><div class="donut-cl">variable</div></div>
+                    </div>
+                    <div class="legend" id="legend-var"></div>
                 </div>
-                <div class="legend" id="legend-var"></div>
             </div>
         </div>
-        <div style="margin:20px 0 4px;display:flex;align-items:center;justify-content:space-between">
+        <div class="cat-list-bar">
             <div class="toggle-group">
                 <div class="tog-btn active" onclick="setToggle('category',this)">Category</div>
                 <div class="tog-btn" onclick="setToggle('merchant',this)">Merchant</div>
             </div>
+            <span class="meta">Tap a row to drill in</span>
         </div>
-        <p class="page-meta" style="margin-bottom:14px">Tap a row to drill in</p>
         <div class="cat-list" id="cat-rows"></div>
         <div id="recurring-section">
-            <div class="sec-head">Recurring Payments</div>
-            <div class="cat-list" id="rec-rows"></div>
+            <div class="sec-title">Recurring Payments</div>
+            <div class="rec-grid" id="rec-rows"></div>
         </div>
-        <div class="page-meta" id="excluded-line" style="margin-top:18px"></div>
+        <div class="meta" id="excluded-line"></div>
     </div>
 
     <!-- Subview -->
     <div class="subview" id="cat-subview">
-        <div class="back-btn" onclick="closeSubview()">← Back</div>
-        <div class="sv-icon" id="sv-icon"></div>
-        <div class="sv-title" id="sv-title"></div>
-        <div class="sv-total" id="sv-total"></div>
-        <div class="chart-card" style="margin-bottom:20px">
-            <div class="chart-title">Spend across pay periods</div>
-            <div class="chart-box" style="height:185px">
-                <canvas id="histBar"></canvas>
+        <div class="back-btn" onclick="closeSubview()"><img src="https://unpkg.com/lucide-static@0.460.0/icons/arrow-left.svg" alt=""><span>Back to Categories</span></div>
+        <div class="sv-head">
+            <span class="ico-chip" id="sv-icon"></span>
+            <div class="sv-head-t">
+                <h2 class="sv-title" id="sv-title"></h2>
+                <span class="sv-total" id="sv-total"></span>
             </div>
         </div>
-        <div class="sec-head" style="margin-top:0">Transactions this period</div>
-        <div class="tx-list" id="sv-txs"></div>
+        <div class="sv-strip" id="sv-strip"></div>
+        <div class="sv-cols">
+            <div class="chart-card sv-card">
+                <div class="sv-card-h"><span class="chart-title">Last 6 Pay Periods</span><span class="avg-leg" id="sv-hist-avg"></span></div>
+                <div class="hist" id="sv-hist"></div>
+                <div class="hist-labels" id="sv-hist-labels"></div>
+            </div>
+            <div class="chart-card sv-card merch">
+                <span class="chart-title">Top Merchants</span>
+                <div id="sv-merch"></div>
+            </div>
+        </div>
+        <div class="sv-tx">
+            <div class="sv-tx-h"><span class="sec-title">Transactions</span><span id="sv-tx-count"></span></div>
+            <div class="tx-list">
+                <div class="tx-head"><span>Merchant</span><span>Date</span><span>Amount</span></div>
+                <div id="sv-txs"></div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- ══════════════════════════════ TAB 3: SAVINGS ══ -->
 <div class="page" id="tab-wealth">
 
-    <div class="insight-strip" id="ins-wealth" style="margin:20px 0 0"></div>
+    <h2 class="page-h">Wealth</h2>
+    <div class="insight-strip" id="ins-wealth"></div>
 
     <!-- ── LEVEL 0: NET WORTH LANDING ─────────────── -->
     <div id="wealth-landing">
-        <div class="nw-banner" style="margin-top:20px">
-            <div>
-                <div class="nw-label">Total Net Worth</div>
+        <div class="nw-hero">
+            <div class="nw-l">
+                <span class="eyebrow">Total net worth</span>
                 <div class="nw-val" id="nw-total">£0</div>
                 <div class="nw-change" id="nw-change">—</div>
             </div>
+            <div class="price-bar" id="pb-landing"></div>
         </div>
         <div class="wealth-donuts">
-            <div class="chart-card">
-                <div class="chart-title">Net worth · by type</div>
+            <div class="chart-card donut-card">
+                <div class="chart-title">Net Worth · by Type</div>
                 <div class="donut-wrap">
                     <canvas id="nwChart"></canvas>
-                    <div class="donut-center"><div class="donut-cv" id="nw-donut-total">—</div><div class="donut-cl">net worth</div></div>
+                    <div class="donut-center" id="nw-donut-total"><div class="donut-cv">—</div></div>
                 </div>
                 <div class="legend" id="nw-legend"></div>
             </div>
-            <div class="chart-card">
+            <div class="chart-card donut-card">
                 <div class="chart-title">Savings</div>
                 <div class="donut-wrap">
                     <canvas id="savChart"></canvas>
-                    <div class="donut-center"><div class="donut-cv" id="sav-donut-total">—</div><div class="donut-cl">savings</div></div>
+                    <div class="donut-center" id="sav-donut-total"><div class="donut-cv">—</div></div>
                 </div>
                 <div class="legend" id="sav-legend"></div>
             </div>
-            <div class="chart-card">
+            <div class="chart-card donut-card">
                 <div class="chart-title">Investments</div>
                 <div class="donut-wrap">
                     <canvas id="invChart"></canvas>
-                    <div class="donut-center"><div class="donut-cv" id="inv-donut-total">—</div><div class="donut-cl">invested</div></div>
+                    <div class="donut-center" id="inv-donut-total"><div class="donut-cv">—</div></div>
                 </div>
                 <div class="legend" id="inv-legend"></div>
             </div>
         </div>
-        <div class="chart-title" style="margin-bottom:11px">Breakdown</div>
-        <div id="wealth-types" style="display:flex;flex-direction:column;gap:9px"></div>
+        <div class="sec-title">Breakdown</div>
+        <div id="wealth-types" style="display:flex;flex-direction:column;gap:12px"></div>
     </div>
 
     <!-- ── LEVEL 1: TYPE → ACCOUNTS ───────────────── -->
     <div id="wealth-type" style="display:none">
-        <div class="back-link" onclick="wealthBack('landing')" style="margin-top:20px">← Back to net worth</div>
-        <div class="chart-title" id="wt-title" style="font-size:20px;margin-bottom:14px">—</div>
-        <div class="cat-kpi-grid" id="wt-kpis" style="margin-bottom:14px"></div>
-        <div class="price-bar" id="pb-type"></div>
-        <div id="wt-acc-list" style="display:flex;flex-direction:column;gap:9px"></div>
-        <button class="add-acc-btn" onclick="openModalForGroup()">+ Add account</button>
+        <div class="crumbs"><img src="https://unpkg.com/lucide-static@0.460.0/icons/arrow-left.svg" alt="">
+            <a onclick="wealthBack('landing')">Wealth</a><span class="sep">/</span><span class="here" id="wt-crumb">—</span></div>
+        <div class="wt-head">
+            <h2 class="page-h" id="wt-title">—</h2>
+            <div class="price-bar" id="pb-type"></div>
+        </div>
+        <div class="cat-kpi-grid" id="wt-kpis"></div>
+        <div class="wt-section">
+            <div class="sec-title">Accounts</div>
+            <div class="acc-list" id="wt-acc-list"></div>
+            <button class="add-acc-btn" onclick="openModalForGroup()"><img src="https://unpkg.com/lucide-static@0.460.0/icons/plus.svg" alt="">Add Account</button>
+        </div>
     </div>
 
     <!-- ── LEVEL 2: INVESTMENT ACCOUNT → HOLDINGS ─── -->
     <div id="wealth-account" style="display:none">
-        <div class="back-link" onclick="wealthBack('type')" style="margin-top:20px">← Back to investments</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-            <div class="chart-title" id="inv-acc-title" style="font-size:20px;margin:0">—</div>
-            <div style="display:flex;gap:6px">
-                <button class="log-del" id="wa-edit" title="Edit account">✎</button>
-                <button class="log-del" id="wa-del" title="Delete account">×</button>
+        <div class="crumbs"><img src="https://unpkg.com/lucide-static@0.460.0/icons/arrow-left.svg" alt="">
+            <a onclick="wealthBack('landing')">Wealth</a><span class="sep">/</span><a onclick="wealthBack('type')">Investments</a><span class="sep">/</span><span class="here" id="wa-crumb">—</span></div>
+        <div class="wt-head">
+            <div class="wt-head-t">
+                <h2 class="page-h" id="inv-acc-title">—</h2>
+                <span class="wt-sub" id="inv-acc-sub"></span>
+            </div>
+            <div class="wt-actions">
+                <button class="btn-s" id="wa-edit" title="Edit account">Edit Account</button>
+                <button class="icon-btn danger" id="wa-del" title="Delete account"><img src="https://unpkg.com/lucide-static@0.460.0/icons/trash-2.svg" alt=""></button>
+                <button class="btn-s dark" onclick="openHoldingModal()"><img src="https://unpkg.com/lucide-static@0.460.0/icons/plus.svg" alt="">Add Holding</button>
             </div>
         </div>
-        <div class="cat-kpi-grid" id="inv-acc-kpis" style="margin-bottom:14px"></div>
+        <div class="cat-kpi-grid" id="inv-acc-kpis"></div>
         <div class="price-bar" id="pb-acct"></div>
-        <div class="chart-card" style="margin-bottom:18px">
-            <div class="chart-title">Holdings map</div>
+        <div class="chart-card sv-card">
+            <div class="chart-title">Holdings Map</div>
             <div class="inv-tree-wrap"><canvas id="invTreemap"></canvas></div>
         </div>
-        <div class="chart-title" style="margin-bottom:11px">Holdings</div>
-        <div id="inv-holdings-list" style="display:flex;flex-direction:column;gap:9px"></div>
-        <button class="add-acc-btn" onclick="openHoldingModal()">+ Add holding</button>
+        <div class="wt-section">
+            <div class="sec-title">Holdings</div>
+            <div class="tx-list">
+                <div class="hold-head"><span>Holding</span><span>Units</span><span>Price</span><span>Value</span><span>Gain / loss</span><span></span></div>
+                <div id="inv-holdings-list"></div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- ═══════════════════════════════ TAB 5: INCOME ══ -->
 <div class="page" id="tab-income">
-    <div class="insight-strip" id="ins-income" style="margin-top:20px"></div>
-    <p class="page-meta" style="margin-top:18px;margin-bottom:20px">UK 2026/27 tax year · PAYE · paid monthly</p>
+    <div class="bgt-head-l">
+        <h2 class="page-h">Income Estimator</h2>
+        <span class="bgt-sub">UK 2026/27 tax year · PAYE · paid monthly</span>
+    </div>
+    <div class="insight-strip" id="ins-income"></div>
 
-    <!-- Job card + pay schedule -->
-    <div class="est-grid">
+    <!-- Job card + pay schedule / PAYE -->
+    <div class="inc-grid">
         <div class="role-card">
-            <div class="role-title">Hourly role</div>
-            <div class="role-sub">Monthly rota · base wage + tronc</div>
-            <div class="fr">
+            <div class="role-head">
+                <div class="role-title">Hourly Role</div>
+                <div class="role-sub">Monthly rota · base wage + tronc</div>
+            </div>
+            <div class="inc-fields">
                 <div class="fg">
-                    <label class="fl">Base rate / hr <span style="color:var(--accent);text-transform:none;letter-spacing:0">(min. wage)</span></label>
+                    <label class="fl" for="job-rate">Base rate / hr <span class="hint">(min. wage)</span></label>
                     <div class="pfx"><span class="pfx-sym">£</span>
                         <input class="fi" type="number" id="job-rate" value="12.71" step="0.01" oninput="recalc()">
                     </div>
                 </div>
                 <div class="fg">
-                    <label class="fl">Tronc / hr <span style="color:var(--accent);text-transform:none;letter-spacing:0">(varies)</span></label>
+                    <label class="fl" for="job-tronc">Tronc / hr <span class="hint">(varies)</span></label>
                     <div class="pfx"><span class="pfx-sym">£</span>
                         <input class="fi" type="number" id="job-tronc" value="2.79" step="0.01" min="0" oninput="recalc()">
                     </div>
                 </div>
-            </div>
-            <div class="fg">
-                <label class="fl">Contracted hours / week</label>
-                <input class="fi" type="number" id="job-contract" value="48" step="0.5" min="0" oninput="recalc()">
-            </div>
-            <div class="fg">
-                <label class="fl">Rota hours this pay period <span style="color:var(--accent);text-transform:none;letter-spacing:0" id="job-hrs-hint">(from rota)</span></label>
-                <input class="fi" type="number" id="job-hrs" value="" step="0.25" oninput="recalc()">
-                <div style="font-size:11px;color:var(--muted);margin-top:5px" id="job-hrs-note"></div>
+                <div class="fg">
+                    <label class="fl" for="job-contract">Contracted hrs / week</label>
+                    <input class="fi" type="number" id="job-contract" value="48" step="0.5" min="0" oninput="recalc()">
+                </div>
+                <div class="fg">
+                    <label class="fl" for="job-hrs">Rota hours this period <span class="hint" id="job-hrs-hint">(from rota)</span></label>
+                    <input class="fi" type="number" id="job-hrs" value="" step="0.25" oninput="recalc()">
+                    <div class="field-note" id="job-hrs-note"></div>
+                </div>
             </div>
             <div class="calc-box">
                 <div class="calc-row"><span>Effective rate</span><span id="job-eff">—</span></div>
@@ -1181,104 +1386,111 @@
                 <div class="calc-row"><span>Gross this payday</span><span id="job-gross">—</span></div>
                 <div class="calc-row"><span>Annualised (×12)</span><span id="job-annual">—</span></div>
             </div>
-            <label style="display:flex;gap:8px;align-items:flex-start;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;cursor:pointer">
-                <input type="checkbox" id="tronc-ni-free" checked onchange="recalc()" style="margin-top:2px;accent-color:var(--accent)">
+            <label class="chk-row">
+                <input type="checkbox" class="chk" id="tronc-ni-free" checked onchange="recalc()">
                 <span>Tronc paid via an independent troncmaster: income tax applies but no National Insurance. Untick if your employer decides who gets the tips.</span>
             </label>
         </div>
-        <div class="role-card">
-            <div class="role-title">Pay schedule</div>
-            <div class="role-sub">Paid last Friday of the month · hours cut off the Friday before</div>
-            <div class="calc-box" style="margin-top:0">
-                <div class="calc-row"><span>Next payday</span><span id="ps-payday">—</span></div>
-                <div class="calc-row"><span>Hours counted</span><span id="ps-window">—</span></div>
-                <div class="calc-row"><span>Weeks in period</span><span id="ps-weeks">—</span></div>
-                <div class="calc-row"><span>Avg hours / week</span><span id="ps-avg">—</span></div>
+
+        <div class="inc-col">
+            <div class="role-card" style="gap:12px">
+                <div class="role-head">
+                    <div class="role-title">Pay Schedule</div>
+                    <div class="role-sub">Paid last Friday of the month · hours cut off the Friday before</div>
+                </div>
+                <div class="sched-rows">
+                    <div class="calc-row"><span>Next payday</span><span id="ps-payday">—</span></div>
+                    <div class="calc-row"><span>Hours counted</span><span id="ps-window">—</span></div>
+                    <div class="calc-row"><span>Weeks in period</span><span id="ps-weeks">—</span></div>
+                    <div class="calc-row"><span>Avg hours / week</span><span id="ps-avg">—</span></div>
+                </div>
+                <p class="inc-note">Because paydays are the last Friday, a period covers either 4 or 5 weeks of hours. Enter the total rota hours between the two cut-off dates.</p>
             </div>
-            <p style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">Because paydays are the last Friday, a period covers either 4 or 5 weeks of hours. Enter the total rota hours between the two cut-off dates.</p>
+
+            <!-- PAYE -->
+            <div class="combined-banner">
+                <div class="cb-title">PAYE · Monthly</div>
+                <div class="cb-rows">
+                    <div class="cb-row"><span>Gross pay</span><span id="c-gross">—</span></div>
+                    <div class="cb-row"><span>Income tax <span class="note">(on gross − pension)</span></span><span id="c-tax">—</span></div>
+                    <div class="cb-row"><span>NI (employee 8%) <span class="note" id="c-ni-note">(on base only)</span></span><span id="c-ni">—</span></div>
+                    <div class="cb-row"><span>Pension <input type="number" id="pension-pct" value="0" step="0.5" min="0" oninput="recalc()" class="dark-inp">% of qualifying</span><span id="c-pension">—</span></div>
+                    <div class="cb-row net"><span>Estimated net take-home</span><span id="c-net">—</span></div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- PAYE -->
-    <div class="combined-banner">
-        <div class="cb-title">PAYE · monthly</div>
-        <div class="cb-rows">
-            <div class="cb-row"><span>Gross pay</span><span id="c-gross">—</span></div>
-            <div class="cb-row"><span>Income tax <span style="opacity:0.6">(on gross − pension)</span></span><span id="c-tax">—</span></div>
-            <div class="cb-row"><span>NI (employee 8%) <span style="opacity:0.6" id="c-ni-note">(on base only)</span></span><span id="c-ni">—</span></div>
-            <div class="cb-row"><span>Pension <input type="number" id="pension-pct" value="0" step="0.5" min="0" oninput="recalc()" class="dark-inp">% of qualifying</span><span id="c-pension">—</span></div>
-            <div class="cb-row net"><span>💰 Estimated net take-home</span><span id="c-net">—</span></div>
+    <!-- Cash / other income + grand total -->
+    <div class="inc-grid-2">
+        <div class="role-card" style="gap:10px">
+            <div class="role-title sm" style="margin-bottom:4px">Cash &amp; Other Income</div>
+            <div class="cash-rows">
+                <div class="cash-row">
+                    <label class="cash-lbl" for="c-allow">Allowance</label>
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="cash-inp" type="number" id="c-allow" value="100" oninput="recalc()"></div>
+                </div>
+                <div class="cash-row">
+                    <label class="cash-lbl" for="c-vinted">Vinted sales</label>
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="cash-inp" type="number" id="c-vinted" value="45" oninput="recalc()"></div>
+                </div>
+                <div class="cash-row">
+                    <label class="cash-lbl" for="c-events">Events / one-off cash</label>
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="cash-inp" type="number" id="c-events" value="0" oninput="recalc()"></div>
+                </div>
+            </div>
+            <div class="tot-row">
+                <span>Total other</span>
+                <span style="font-weight:600" id="c-cash-total">—</span>
+            </div>
         </div>
-    </div>
 
-    <!-- Cash / other income -->
-    <div class="cash-card">
-        <div class="chart-title" style="margin-bottom:12px">Cash & Other Income</div>
-        <div class="cash-row">
-            <span class="cash-lbl">Allowance</span>
-            <input class="cash-inp" type="number" id="c-allow" value="100" oninput="recalc()">
+        <div class="role-card" style="gap:10px">
+            <div class="role-title sm" style="margin-bottom:4px">Grand Total · Monthly Income</div>
+            <div class="gt-rows">
+                <div class="gt-row"><span>PAYE net take-home</span><span id="gt-net">—</span></div>
+                <div class="gt-row"><span>Cash &amp; other</span><span id="gt-cash">—</span></div>
+            </div>
+            <div class="tot-row big"><span>Total monthly income</span><span class="gt pos" id="gt-total">—</span></div>
+            <!-- Monthly target -->
+            <div class="target-row">
+                <input class="fs" type="month" id="target-month" aria-label="Target month">
+                <button class="btn-p" onclick="saveTarget()">Save as target</button>
+            </div>
+            <div class="inc-note" id="target-note">Save this estimate as an income target for the chosen month.</div>
         </div>
-        <div class="cash-row">
-            <span class="cash-lbl">Vinted sales</span>
-            <input class="cash-inp" type="number" id="c-vinted" value="45" oninput="recalc()">
-        </div>
-        <div class="cash-row">
-            <span class="cash-lbl">Events / one-off cash</span>
-            <input class="cash-inp" type="number" id="c-events" value="0" oninput="recalc()">
-        </div>
-        <div class="cash-total-row">
-            <span class="cash-lbl" style="font-weight:700">Total other</span>
-            <span style="font-size:14px;font-weight:700" id="c-cash-total">—</span>
-        </div>
-    </div>
-
-    <!-- Grand total -->
-    <div class="combined-banner">
-        <div class="cb-title">Grand total · monthly income</div>
-        <div class="cb-rows">
-            <div class="cb-row"><span>PAYE net take-home</span><span id="gt-net">—</span></div>
-            <div class="cb-row"><span>Cash &amp; other</span><span id="gt-cash">—</span></div>
-            <div class="cb-row net"><span>💷 Total monthly income</span><span id="gt-total">—</span></div>
-        </div>
-    </div>
-
-    <!-- Monthly target -->
-    <div class="cash-card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-            <div class="chart-title" style="margin-bottom:4px">Solidify as a monthly target</div>
-            <div style="font-size:11px;color:var(--muted)" id="target-note">Save this estimate as an income target for the chosen month.</div>
-        </div>
-        <input class="fs" type="month" id="target-month" style="width:auto">
-        <button class="btn-p" onclick="saveTarget()">Save target</button>
     </div>
 
 </div>
 
 <!-- ══════════════════════════════ TAB: BUDGET ══ -->
 <div class="page" id="tab-budget">
-    <p class="page-meta">Auto-budget = median of your last 6 pay periods · edit any target to override</p>
-
-    <div class="bgt-stepper">
-        <button class="bgt-step" id="bgt-prev" onclick="budgetStep(1)">‹</button>
-        <button class="bgt-step" id="bgt-next" onclick="budgetStep(-1)">›</button>
-        <div class="bgt-period" id="bgt-period">—</div>
+    <div class="bgt-head">
+        <div class="bgt-head-l">
+            <h2 class="bgt-title">Budget</h2>
+            <span class="bgt-sub">Auto-budget = median of your last 6 pay periods · edit any target to override</span>
+        </div>
+        <div class="bgt-stepper">
+            <button class="bgt-step" id="bgt-prev" onclick="budgetStep(1)" title="Previous period"><img src="https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg" alt=""></button>
+            <button class="bgt-step" id="bgt-next" onclick="budgetStep(-1)" title="Next period"><img src="https://unpkg.com/lucide-static@0.460.0/icons/chevron-right.svg" alt=""></button>
+            <div class="bgt-period" id="bgt-period">—</div>
+        </div>
     </div>
 
     <div class="insight-strip" id="ins-budget"></div>
 
-    <div class="bgt-safe" id="bgt-safe">
-        <div>
+    <div class="bgt-top">
+        <div class="bgt-safe" id="bgt-safe">
             <div class="bgt-safe-l">Safe to spend</div>
             <div class="bgt-safe-v" id="bgt-safe-v">—</div>
             <div class="bgt-safe-sub" id="bgt-safe-sub">—</div>
         </div>
-    </div>
-
-    <div class="bgt-kpis">
-        <div class="bgt-kpi"><div class="bgt-kpi-l">Total budgeted</div><div class="bgt-kpi-v" id="bgt-k-budget">—</div></div>
-        <div class="bgt-kpi"><div class="bgt-kpi-l">Spent so far</div><div class="bgt-kpi-v" id="bgt-k-spent">—</div><div class="bgt-kpi-sub" id="bgt-k-spent-sub">—</div></div>
-        <div class="bgt-kpi"><div class="bgt-kpi-l">Projected</div><div class="bgt-kpi-v" id="bgt-k-proj">—</div><div class="bgt-kpi-sub" id="bgt-k-proj-sub">—</div></div>
-        <div class="bgt-kpi"><div class="bgt-kpi-l">Left to budget</div><div class="bgt-kpi-v" id="bgt-k-left">—</div><div class="bgt-kpi-sub" id="bgt-k-left-sub">vs est. income</div></div>
+        <div class="bgt-kpis">
+            <div class="bgt-kpi"><div class="bgt-kpi-l">Total budgeted</div><div class="bgt-kpi-v" id="bgt-k-budget">—</div><div class="bgt-kpi-sub" id="bgt-k-budget-sub">—</div></div>
+            <div class="bgt-kpi"><div class="bgt-kpi-l">Spent so far</div><div class="bgt-kpi-v" id="bgt-k-spent">—</div><div class="bgt-kpi-sub" id="bgt-k-spent-sub">—</div></div>
+            <div class="bgt-kpi"><div class="bgt-kpi-l">Projected</div><div class="bgt-kpi-v" id="bgt-k-proj">—</div><div class="bgt-kpi-sub" id="bgt-k-proj-sub">—</div></div>
+            <div class="bgt-kpi"><div class="bgt-kpi-l">Left to budget</div><div class="bgt-kpi-v" id="bgt-k-left">—</div><div class="bgt-kpi-sub" id="bgt-k-left-sub">vs est. income</div></div>
+        </div>
     </div>
 
     <div class="bgt-total-card">
@@ -1289,13 +1501,13 @@
         <div class="bgt-bar"><div class="bgt-bar-fill" id="bgt-total-fill"></div><div class="bgt-pace" id="bgt-total-pace"></div></div>
     </div>
 
-    <div id="bgt-fixed-sec">
+    <div class="bgt-group" id="bgt-fixed-sec">
         <div class="bgt-sec-title"><span>Fixed</span><span id="bgt-fixed-sub">—</span></div>
-        <div id="bgt-fixed-rows"></div>
+        <div class="bgt-rows" id="bgt-fixed-rows"></div>
     </div>
-    <div id="bgt-var-sec">
+    <div class="bgt-group" id="bgt-var-sec">
         <div class="bgt-sec-title"><span>Variable</span><span id="bgt-var-sub">—</span></div>
-        <div id="bgt-var-rows"></div>
+        <div class="bgt-rows" id="bgt-var-rows"></div>
     </div>
 </div>
 
@@ -1306,12 +1518,12 @@
     <div class="modal">
         <div class="modal-title">Add Account</div>
         <div class="fg">
-            <label class="fl">Account name</label>
-            <input class="fi" type="text" id="m-name" placeholder="e.g. Monzo Cash ISA">
+            <label class="fl" for="m-name">Account name</label>
+            <div class="fic"><input class="fi" type="text" id="m-name" placeholder="e.g. Monzo Cash ISA"><img src="https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg" alt=""></div>
         </div>
-        <div class="fr">
-            <div class="fg">
-                <label class="fl">Type</label>
+        <div class="fg">
+            <label class="fl" for="m-type">Type</label>
+            <div class="fic">
                 <select class="fs" id="m-type" onchange="onTypeChange()">
                     <option value="isa">Cash ISA</option>
                     <option value="investment">S&S ISA</option>
@@ -1319,28 +1531,28 @@
                     <option value="pension">Pension (e.g. SmartPension)</option>
                     <option value="crypto">Crypto (e.g. Binance)</option>
                     <option value="gia">GIA</option>
-                </select>
+                </select><img src="https://unpkg.com/lucide-static@0.460.0/icons/chevron-down.svg" alt="">
             </div>
-            <div class="fg">
-                <label class="fl">Institution</label>
-                <input class="fi" type="text" id="m-inst" placeholder="e.g. Trading 212">
-            </div>
+        </div>
+        <div class="fg">
+            <label class="fl" for="m-inst">Institution</label>
+            <div class="fic"><input class="fi" type="text" id="m-inst" placeholder="e.g. Trading 212"><img src="https://unpkg.com/lucide-static@0.460.0/icons/building-2.svg" alt=""></div>
         </div>
         <div class="fr" id="m-bal-row">
             <div class="fg">
-                <label class="fl">Current balance</label>
+                <label class="fl" for="m-bal">Current balance</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
                     <input class="fi" type="number" id="m-bal" placeholder="0.00" step="0.01">
                 </div>
             </div>
             <div class="fg">
-                <label class="fl">Last month's balance</label>
+                <label class="fl" for="m-prev">Previous balance</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
-                    <input class="fi" type="number" id="m-prev" placeholder="0.00" step="0.01">
+                    <input class="fi" type="number" id="m-prev" placeholder="Optional" step="0.01">
                 </div>
             </div>
         </div>
-        <div class="modal-hint" id="m-bal-hint" style="display:none">Value comes from the holdings you add inside this account.</div>
+        <div class="modal-hint" id="m-bal-hint" style="display:none">Investment, GIA and crypto accounts take their value from the holdings you add inside them.</div>
         <div class="modal-actions">
             <button class="btn-g" onclick="closeModal()">Cancel</button>
             <button class="btn-p" onclick="saveAccount()">Add Account</button>
@@ -1354,52 +1566,56 @@
         <div class="modal-title" id="h-modal-title">Add Holding</div>
         <div class="fr">
             <div class="fg">
-                <label class="fl">Ticker</label>
-                <input class="fi" type="text" id="h-ticker" placeholder="e.g. VWRP">
+                <label class="fl" for="h-ticker">Ticker</label>
+                <div class="fic"><input class="fi" type="text" id="h-ticker" placeholder="e.g. VWRP"><img src="https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg" alt=""></div>
             </div>
             <div class="fg">
-                <label class="fl">Currency</label>
-                <select class="fs" id="h-currency">
-                    <option value="GBP">GBP £</option>
-                    <option value="USD">USD $</option>
-                    <option value="EUR">EUR €</option>
-                </select>
+                <label class="fl" for="h-currency">Currency</label>
+                <div class="fic">
+                    <select class="fs" id="h-currency">
+                        <option value="GBP">GBP £</option>
+                        <option value="USD">USD $</option>
+                        <option value="EUR">EUR €</option>
+                    </select><img src="https://unpkg.com/lucide-static@0.460.0/icons/chevron-down.svg" alt="">
+                </div>
             </div>
         </div>
         <div class="fg">
-            <label class="fl">Name</label>
-            <input class="fi" type="text" id="h-name" placeholder="e.g. Vanguard FTSE All-World">
+            <label class="fl" for="h-name">Name</label>
+            <div class="fic"><input class="fi" type="text" id="h-name" placeholder="e.g. Vanguard FTSE All-World"><img src="https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg" alt=""></div>
         </div>
         <div class="fr">
             <div class="fg">
-                <label class="fl">Yahoo symbol</label>
-                <input class="fi" type="text" id="h-symbol" placeholder="e.g. VUAG.L">
+                <label class="fl" for="h-symbol">Yahoo symbol</label>
+                <div class="fic"><input class="fi" type="text" id="h-symbol" placeholder="e.g. VUAG.L"><img src="https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg" alt=""></div>
             </div>
             <div class="fg">
-                <label class="fl">Price</label>
-                <select class="fs" id="h-pricemode" onchange="onPriceModeChange()">
-                    <option value="live">Live (Yahoo)</option>
-                    <option value="manual">Manual</option>
-                </select>
+                <label class="fl" for="h-pricemode">Price</label>
+                <div class="fic">
+                    <select class="fs" id="h-pricemode" onchange="onPriceModeChange()">
+                        <option value="live">Live (Yahoo)</option>
+                        <option value="manual">Manual</option>
+                    </select><img src="https://unpkg.com/lucide-static@0.460.0/icons/chevron-down.svg" alt="">
+                </div>
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:9px;margin:-2px 0 4px">
-            <button class="btn-g" type="button" id="h-test" style="padding:6px 12px" onclick="testSymbol()">Test symbol</button>
-            <span id="h-test-result" class="modal-hint" style="margin:0"></span>
+        <div class="test-row">
+            <button class="btn-g" type="button" id="h-test" style="height:32px;padding:0 12px" onclick="testSymbol()">Test Symbol</button>
+            <span id="h-test-result" class="modal-hint"></span>
         </div>
-        <div class="fr">
+        <div class="fr three">
             <div class="fg">
-                <label class="fl">Units</label>
+                <label class="fl" for="h-units">Units</label>
                 <input class="fi" type="number" id="h-units" placeholder="0" step="any">
             </div>
             <div class="fg">
-                <label class="fl">Avg cost (£)</label>
+                <label class="fl" for="h-avgcost">Avg cost</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
                     <input class="fi" type="number" id="h-avgcost" placeholder="0.00" step="any">
                 </div>
             </div>
             <div class="fg">
-                <label class="fl">Last price (£)</label>
+                <label class="fl" for="h-price">Last price</label>
                 <div class="pfx"><span class="pfx-sym">£</span>
                     <input class="fi" type="number" id="h-price" placeholder="0.00" step="any">
                 </div>
@@ -1572,14 +1788,14 @@ const Sync = {
    MOCK DATA (offline fallback / demo)
    ════════════════════════════════════════════════════ */
 const CATS_MOCK = [
-    { icon:'🏠', name:'Bills & Utilities',  amt:340, tx:8,  color:'#D4B8A8' },
-    { icon:'🛒', name:'Groceries',           amt:234, tx:23, color:'#7BA68A' },
-    { icon:'🛍️', name:'Shopping',            amt:178, tx:12, color:'#C4A8D4' },
-    { icon:'🍽️', name:'Eating Out',          amt:156, tx:15, color:'#D4A69A' },
-    { icon:'📱', name:'Subscriptions',       amt:87,  tx:11, color:'#A8C4D4' },
-    { icon:'🚌', name:'Transport',           amt:89,  tx:31, color:'#A8D4C4' },
-    { icon:'🎉', name:'Entertainment',       amt:57,  tx:9,  color:'#B8D4A8' },
-    { icon:'💊', name:'Health & Wellbeing', amt:62,  tx:6,  color:'#D4C4A8' },
+    { icon:'🏠', name:'Bills & Utilities',  amt:340, tx:8,  color:'#0070f3' },
+    { icon:'🛒', name:'Groceries',           amt:234, tx:23, color:'#00dfd8' },
+    { icon:'🛍️', name:'Shopping',            amt:178, tx:12, color:'#7928ca' },
+    { icon:'🍽️', name:'Eating Out',          amt:156, tx:15, color:'#ff0080' },
+    { icon:'📱', name:'Subscriptions',       amt:87,  tx:11, color:'#50e3c2' },
+    { icon:'🚌', name:'Transport',           amt:89,  tx:31, color:'#f9cb28' },
+    { icon:'🎉', name:'Entertainment',       amt:57,  tx:9,  color:'#a1a1a1' },
+    { icon:'💊', name:'Health & Wellbeing', amt:62,  tx:6,  color:'#ff4d4d' },
 ];
 const MOM_MOCK = {
     'Bills & Utilities': { pct:0,   good:true  },
@@ -1624,10 +1840,10 @@ const MOCK_LINE = {
     lastCum: [85,176,290,409,1200,1307],
 };
 const INCOME_MOCK = [
-    { icon:'💰', name:'Salary',       amt:1650, tx:1, color:'#7BA68A', momPct:+3 },
-    { icon:'🛍️', name:'Vinted Sales', amt:120,  tx:6, color:'#C4A8D4', momPct:+18 },
-    { icon:'💵', name:'Allowance',    amt:60,   tx:1, color:'#D4A69A', momPct:0 },
-    { icon:'🏦', name:'Interest',     amt:17,   tx:1, color:'#A8C4D4', momPct:+6 },
+    { icon:'💰', name:'Salary',       amt:1650, tx:1, color:'#0070f3', momPct:+3 },
+    { icon:'🛍️', name:'Vinted Sales', amt:120,  tx:6, color:'#00dfd8', momPct:+18 },
+    { icon:'💵', name:'Allowance',    amt:60,   tx:1, color:'#7928ca', momPct:0 },
+    { icon:'🏦', name:'Interest',     amt:17,   tx:1, color:'#ff0080', momPct:+6 },
 ];
 const INCOME_HIST_MOCK = {
     labels: ['Jan','Feb','Mar','Apr','May','Jun*'],
@@ -1703,7 +1919,7 @@ function classOf(name) {
     return FIXED_KEYWORDS.some(k => n.includes(k)) ? 'fixed' : 'variable';
 }
 
-const PALETTE = ['#D4A69A','#7BA68A','#C4A8D4','#D4B8A8','#A8C4D4','#A8D4C4','#B8D4A8','#D4C4A8','#C9B8A8','#A89CD4','#D4A8B8','#A8B8D4'];
+const PALETTE = ['#0070f3','#00dfd8','#7928ca','#ff0080','#f9cb28','#50e3c2','#ff4d4d','#a1a1a1'];
 
 const ICON_MAP = [
     [['grocer','supermarket','food & drink','food shop'], '🛒'],
@@ -1727,6 +1943,55 @@ function iconFor(name) {
     const n = String(name || '').toLowerCase();
     for (const [keys, icon] of ICON_MAP) if (keys.some(k => n.includes(k))) return icon;
     return '💳';
+}
+
+/* Display-only: the data layer still carries emoji icons; the UI renders them
+   as Lucide line icons (no emoji anywhere on screen). */
+const LUCIDE = n => `https://unpkg.com/lucide-static@0.460.0/icons/${n}.svg`;
+const EMOJI_LUCIDE = {
+    '🛒':'shopping-cart', '🚌':'bus', '🍽':'utensils', '🛍':'shopping-bag', '🏠':'house', '📱':'repeat',
+    '🎉':'ticket', '💊':'heart-pulse', '💅':'sparkles', '🐕':'dog', '🎁':'gift', '❤':'heart',
+    '📚':'book-open', '💰':'piggy-bank', '💵':'banknote', '✈':'plane', '💳':'credit-card',
+    '📺':'tv', '🎵':'music', '☁':'cloud', '💬':'message-circle', '📝':'notebook-pen', '🤖':'bot',
+    '🏦':'landmark', '📈':'trending-up', '📊':'chart-column', '🎯':'target', '🪙':'coins',
+};
+function iconImg(emoji, size = 14) {
+    const name = EMOJI_LUCIDE[String(emoji || '').replace(/️/g, '')] || 'circle';
+    return `<img src="${LUCIDE(name)}" width="${size}" height="${size}" alt="">`;
+}
+
+/* Number typography → HTML. Big figures get a shrunk £ / sign; commas get a
+   size-specific gap, and Geist Mono's full-width comma + point are pulled in. */
+const COMMA_GAP = { hero:'0.06em', large:'0.07em', kpi:'0.05em', small:'0.02em' };
+function fmtNum(abs, decimals, size, mono) {
+    const s = abs.toLocaleString('en-GB', { minimumFractionDigits:decimals, maximumFractionDigits:decimals });
+    const gap = mono ? '-0.18em' : COMMA_GAP[size];
+    return s.replace(/[,.]/g, ch =>
+        ch === ',' ? `<span style="margin:0 ${gap};letter-spacing:0">,</span>`
+      : mono ? `<span style="margin:0 -0.18em;letter-spacing:0">.</span>` : ch);
+}
+// Plain number in Geist Mono (e.g. fractional share units), up to maxD decimals
+function fmtMono(n, maxD = 4) {
+    return (+n || 0).toLocaleString('en-GB', { maximumFractionDigits:maxD })
+        .replace(/[,.]/g, ch => `<span style="margin:0 -0.18em;letter-spacing:0">${ch}</span>`);
+}
+// fmtMoney(v, {size:'hero'|'large'|'kpi'|'small', mono, decimals, sign})  sign → always show +/−
+function fmtMoney(v, o = {}) {
+    const size = o.size || 'small', big = size !== 'small', d = o.decimals || 0;
+    const n = Math.round((+v || 0) * 10 ** d) / 10 ** d;
+    const sg = n < 0 ? '−' : (o.sign && n > 0 ? '+' : '');
+    return (sg && big ? `<span class="sg">${sg}</span>` : sg)
+         + (big ? '<span class="cur">£</span>' : '£')
+         + fmtNum(Math.abs(n), d, size, !!o.mono);
+}
+// fmtPct(v, {size, sign, decimals})  — big sizes shrink the sign and % sign
+function fmtPct(v, o = {}) {
+    const size = o.size || 'small', big = size !== 'small', d = o.decimals || 0;
+    const n = Math.round((+v || 0) * 10 ** d) / 10 ** d;
+    const sg = n < 0 ? '−' : (o.sign && n > 0 ? '+' : '');
+    return (sg && big ? `<span class="sg">${sg}</span>` : sg)
+         + fmtNum(Math.abs(n), d, size, false)
+         + (big ? '<span class="pc">%</span>' : '%');
 }
 
 /* ════════════════════════════════════════════════════
@@ -2232,18 +2497,16 @@ function renderNextIncome() {
     if (!el) return;
     // Live estimate from the Income tab (reflects your edits immediately).
     const val = LAST_INCOME ? LAST_INCOME.grandTotal : 0;
-    el.textContent = '£' + Math.round(val || 0).toLocaleString();
+    el.innerHTML = fmtMoney(val, { size:'large' });
 
     // Flag vs last period's actual income.
     const lastInc = VIEW ? (VIEW.prevIncome || 0) : 0;
     const diff = Math.round(val - lastInc);
+    const pct = lastInc > 0 ? (val - lastInc) / lastInc * 100 : 0;
+    const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
     const badge = document.getElementById('next-income-mom');
     const sub = document.getElementById('next-income-sub');
-    if (badge) {
-        const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
-        badge.className = 'mom ' + (diff >= 0 ? 'dg' : 'ub');
-        badge.textContent = `${arrow} £${Math.abs(diff).toLocaleString()} vs last period`;
-    }
+    if (badge) badge.textContent = `${arrow} ${Math.abs(pct).toFixed(1)}% vs last period`;
     if (sub) {
         const key = nextMonthKey();
         const t = INCOME_TARGETS[key];
@@ -2257,20 +2520,67 @@ function renderExcluded() {
     const n = VIEW.excludedCount || 0, t = VIEW.excludedTotal || 0;
     el.textContent = n === 0
         ? 'No transfers or excluded items this period.'
-        : `Excluded this period: ${n} transfer/excluded ${n === 1 ? 'item' : 'items'} (£${t.toLocaleString()}) — not counted in income or spending.`;
+        : `Excluded this period: ${n} transfer${n === 1 ? '' : 's'} · £${t.toLocaleString()} (not counted in income or spending)`;
 }
 
 function setHero(which, cur, prev) {
     const isIncome = which === 'income';
-    document.getElementById(isIncome ? 'hero-income' : 'hero-spend').textContent = '£' + cur.toLocaleString();
+    document.getElementById(isIncome ? 'hero-income' : 'hero-spend').innerHTML = fmtMoney(cur, { size:'kpi' });
     const badge = document.getElementById(isIncome ? 'hero-income-mom' : 'hero-spend-mom');
     const sub   = document.getElementById(isIncome ? 'hero-income-sub' : 'hero-spend-sub');
     const pct   = prev > 0 ? Math.round((cur - prev)/prev * 100) : 0;
     const isGood = isIncome ? pct >= 0 : pct <= 0;
-    const arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
-    badge.className = 'mom ' + (isGood ? 'dg' : 'ub');
-    badge.textContent = `${arrow} ${Math.abs(pct)}% vs last period`;
+    badge.className = 'kpi-d ' + (pct === 0 ? 'mut' : isGood ? 'pos' : 'neg');
+    badge.textContent = (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct) + '%';
     sub.textContent = `£${prev.toLocaleString()} last period`;
+}
+
+// Where we are in the selected period (for "day X of Y" and the pace tick).
+function periodProgress() {
+    const r = rangeFor(CUR), now = new Date();
+    const current = now >= r.start && now <= r.end;
+    const totalDays = Math.max(1, Math.round((r.end - r.start) / 864e5));
+    return { current, totalDays,
+             day: Math.min(totalDays, Math.floor((now - r.start) / 864e5) + 1),
+             elapsed: current ? (now - r.start) / (r.end - r.start) : 1 };
+}
+
+// Overview hero (1c): spent vs total budget with pace tick.
+function renderOverviewHero(V) {
+    const el = id => document.getElementById(id);
+    const P = periodProgress();
+    const budget = budgetFlagAllowed() ? Object.values(BUDGETS).reduce((s, b) => s + (b.target || 0), 0) : 0;
+    const spent = V.totalSpend;
+    el('ov-hero-spent').innerHTML = fmtMoney(spent, { size:'hero' });
+
+    if (!(budget > 0)) {
+        el('ov-hero-eyebrow').textContent = `Spent this period${P.current ? ` · day ${P.day} of ${P.totalDays}` : ''}`;
+        el('ov-hero-of').innerHTML = '';
+        el('ov-hero-bar').hidden = true;
+        el('ov-hero-line').innerHTML = `vs ${fmtMoney(V.prevSpend)} last period`;
+        return;
+    }
+    const pct = spent / budget * 100, left = Math.round(budget - spent);
+    el('ov-hero-eyebrow').textContent = `Spent vs budget · ${P.current ? `day ${P.day} of ${P.totalDays}` : 'final'}`;
+    el('ov-hero-of').innerHTML = 'of £' + fmtNum(budget, 0, 'large', false);
+    el('ov-hero-bar').hidden = false;
+    const fill = el('ov-hero-fill');
+    fill.style.width = Math.min(100, pct) + '%';
+    fill.className = 'bar-fill ' + (pct > 100 ? 'over' : pct >= 85 ? 'near' : '');
+    const pace = el('ov-hero-pace');
+    pace.style.display = P.current ? 'block' : 'none';
+    pace.style.left = Math.min(100, P.elapsed * 100) + '%';
+
+    const parts = [left >= 0 ? `<span class="pos">${fmtMoney(left)} left</span>` : `<span class="neg">${fmtMoney(-left)} over</span>`];
+    if (CUR.mode === 'pay' && !CUR.offset) {
+        const bs = budgetSummary(0);
+        if (bs.isCurrent && bs.daysLeft > 0 && bs.safePot > 0) parts.push(`${fmtMoney(bs.safePerDay)}/day safe to spend`);
+    }
+    if (P.current) {
+        const d = pct - P.elapsed * 100;
+        parts.push(d > 15 ? 'well ahead of pace' : d > 3 ? 'slightly ahead of pace' : d < -15 ? 'well under pace' : d < -3 ? 'slightly under pace' : 'on pace');
+    }
+    el('ov-hero-line').innerHTML = parts.join(' · ');
 }
 
 function renderOverview() {
@@ -2279,15 +2589,16 @@ function renderOverview() {
 
     setHero('income', V.totalIncome, V.prevIncome);
     setHero('spend',  V.totalSpend,  V.prevSpend);
+    renderOverviewHero(V);
 
-    document.getElementById('pc-last-range').textContent = V.prevLabel;
-    document.getElementById('pc-last-amt').textContent   = '£' + V.prevSpend.toLocaleString();
-    document.getElementById('pc-this-range').innerHTML   = V.rangeLabel + (V.partial ? ' <span style="color:var(--accent)">*partial</span>' : '');
-    document.getElementById('pc-this-amt').textContent   = '£' + V.totalSpend.toLocaleString();
+    document.getElementById('pc-last-range').textContent = 'Last · ' + V.prevLabel;
+    document.getElementById('pc-last-amt').innerHTML     = fmtMoney(V.prevSpend);
+    document.getElementById('pc-this-range').innerHTML   = 'This · ' + V.rangeLabel + (V.partial ? '<span class="mut" title="Period still in progress">*</span>' : '');
+    document.getElementById('pc-this-amt').innerHTML     = fmtMoney(V.totalSpend);
     const diff = V.totalSpend - V.prevSpend;
     const dEl = document.getElementById('pc-diff');
-    dEl.textContent = diff === 0 ? '→ same' : diff < 0 ? `↓ £${Math.abs(diff).toLocaleString()} less` : `↑ £${diff.toLocaleString()} more`;
-    dEl.style.color = diff <= 0 ? 'var(--positive)' : 'var(--negative)';
+    dEl.innerHTML = fmtMoney(diff, { sign:true });
+    dEl.style.color = diff === 0 ? '' : diff < 0 ? 'var(--positive)' : 'var(--negative)';
 
     renderLine(V);
     renderDonut();
@@ -2333,20 +2644,20 @@ function renderLine(V) {
 
 // Generic donut + legend builder. Returns the Chart instance (caller stores it).
 function makeDonut(canvasId, centerId, legendId, cats, total, noun) {
-    const reset = `<div class="donut-cv">£${total.toLocaleString()}</div><div class="donut-cl">${noun}</div>`;
+    const reset = `<div class="donut-cv">${fmtMoney(total, { size:'kpi' })}</div><div class="donut-cl">${noun}</div>`;
     const center = document.getElementById(centerId);
     if (center) center.innerHTML = reset;
     const leg = document.getElementById(legendId);
     if (leg) leg.innerHTML = cats.map(c =>
-        `<div class="leg-item"><div class="leg-dot" style="background:${c.color}"></div><span class="leg-name">${c.name}</span><span class="leg-amt">£${c.amt.toLocaleString()}</span></div>`
+        `<div class="leg-item"><div class="leg-dot" style="background:${c.color}"></div><span class="leg-name">${c.name}</span><span class="leg-amt">${fmtMoney(c.amt)}</span></div>`
     ).join('') || `<div class="empty-state">Nothing here this period</div>`;
     const canvas = document.getElementById(canvasId);
     if (!canvas || !cats.length) return null;
     return new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels:cats.map(c=>c.name), datasets:[{ data:cats.map(c=>c.amt), backgroundColor:cats.map(c=>c.color), borderWidth:2, borderColor:'#FFFFFF', hoverBorderWidth:3 }] },
+        data: { labels:cats.map(c=>c.name), datasets:[{ data:cats.map(c=>c.amt), backgroundColor:cats.map(c=>c.color), borderWidth:2, borderColor:'#FFFFFF', hoverOffset:0 }] },
         options: {
-            responsive:true, maintainAspectRatio:true, cutout:'66%',
+            responsive:true, maintainAspectRatio:true, cutout:'68%',
             plugins: {
                 legend:{display:false},
                 tooltip:{ callbacks:{ label: c => `£${c.parsed} (${total?Math.round(c.parsed/total*100):0}%)` } }
@@ -2355,7 +2666,7 @@ function makeDonut(canvasId, centerId, legendId, cats, total, noun) {
                 if (!center) return;
                 if (els.length) {
                     const c = cats[els[0].index];
-                    center.innerHTML = `<div class="donut-cv">£${c.amt.toLocaleString()}</div><div class="donut-cl">${c.name}</div>`;
+                    center.innerHTML = `<div class="donut-cv">${fmtMoney(c.amt, { size:'kpi' })}</div><div class="donut-cl">${c.name}</div>`;
                 } else center.innerHTML = reset;
             }
         }
@@ -2371,7 +2682,7 @@ function renderDonut() {
 
     if (isInc) {
         const tEl = document.getElementById('donut-title');
-        if (tEl) tEl.textContent = 'Income by category';
+        if (tEl) tEl.textContent = 'Income by Category';
         CHART_DONUT = makeDonut('donutChart', 'donut-center', 'legend', activeCats(), activeTotal(), 'total income');
     } else {
         const fixed    = VIEW.cats.filter(c => classOf(c.name) === 'fixed');
@@ -2383,18 +2694,31 @@ function renderDonut() {
     }
 }
 
+// Overview ledger (1c): one row per category with budget bar, vs-last and status pill.
 function renderCatGrid(V) {
+    const P = periodProgress();
     document.getElementById('cat-kpi-grid').innerHTML = V.cats.map(c => {
-        const arrow = c.momPct > 0 ? '↑' : c.momPct < 0 ? '↓' : '→';
-        const colour = c.momPct === 0 ? 'var(--muted)' : c.momGood ? 'var(--positive)' : 'var(--negative)';
-        return `<div class="ckpi">
-            <div class="ckpi-name">${c.icon} ${c.name}</div>
-            <div class="ckpi-val">£${c.amt.toLocaleString()}</div>
-            <div class="ckpi-foot">
-                <span class="ckpi-last">last £${(c.prevAmt||0).toLocaleString()}</span>
-                <span class="ckpi-mom" style="color:${colour}">${arrow} ${Math.abs(c.momPct)}%</span>
+        const b = budgetFlagAllowed() ? BUDGETS[c.name] : null;
+        const target = b && b.target > 0 ? b.target : 0;
+        const pct = target ? c.amt / target * 100 : 0;
+        const status = budgetPill(c.name, c.amt);
+        const bar = target
+            ? `<div class="bar"><div class="bar-fill ${pct > 100 ? 'over' : pct >= 85 ? 'near' : ''}" style="width:${Math.min(100, pct)}%"></div>${P.current ? `<div class="bar-pace" style="left:${Math.min(100, P.elapsed * 100)}%"></div>` : ''}</div>
+               <span class="lr-bm">${Math.round(pct)}% of ${fmtMoney(target)}</span>`
+            : '<span class="lr-bm">No budget</span>';
+        const momCls = c.momPct === 0 ? 'mut' : c.momGood ? 'pos' : 'neg';
+        return `<div class="ledger-row">
+            <div class="lr-name">
+                <span class="ico-chip">${iconImg(c.icon)}</span>
+                <div class="lr-txt">
+                    <span class="lr-t">${c.name}</span>
+                    <span class="lr-m">${classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable'} · ${c.tx} transaction${c.tx === 1 ? '' : 's'}</span>
+                </div>
             </div>
-            ${budgetBadge(c.name, c.amt)}
+            <span class="lr-spent">${fmtMoney(c.amt)}</span>
+            <div class="lr-bar">${bar}</div>
+            <span class="lr-mom ${momCls}">${fmtPct(c.momPct, { sign:true })}</span>
+            <span class="lr-status">${status}</span>
         </div>`;
     }).join('') || '<div class="empty-state">No categories this period</div>';
 }
@@ -2410,6 +2734,15 @@ function budgetBadge(name, spent) {
     const diff = Math.round(b.target - spent), over = diff < 0;
     return `<div class="ckpi-budget ${over ? 'over' : 'under'}">${over ? '£' + Math.abs(diff).toLocaleString() + ' over' : '£' + diff.toLocaleString() + ' left'} of £${b.target.toLocaleString()}</div>`;
 }
+function budgetPill(name, spent) {
+    if (!budgetFlagAllowed()) return '';
+    const b = BUDGETS[name];
+    if (!b || !(b.target > 0)) return '';
+    const diff = Math.round(b.target - spent);
+    return diff === 0 ? '<span class="pill pos">On budget</span>'
+         : diff > 0 ? `<span class="pill pos">${fmtMoney(diff)} under</span>`
+         : `<span class="pill neg">${fmtMoney(-diff)} over</span>`;
+}
 function budgetInline(name, spent) {
     if (!budgetFlagAllowed()) return '';
     const b = BUDGETS[name];
@@ -2419,21 +2752,24 @@ function budgetInline(name, spent) {
 }
 
 function renderCatRows() {
-    const noun = activeNoun();
-    document.getElementById('cat-rows').innerHTML = activeCats().map(c => {
-        const arrow = c.momPct > 0 ? '↑' : c.momPct < 0 ? '↓' : '→';
-        const colour = c.momPct === 0 ? 'var(--muted)' : c.momGood ? 'var(--positive)' : 'var(--negative)';
+    const noun = activeNoun(), cats = activeCats();
+    const max = Math.max(1, ...cats.map(c => c.amt));
+    document.getElementById('cat-rows').innerHTML = cats.map(c => {
+        const colour = c.momPct === 0 ? 'mut' : c.momGood ? 'pos' : 'neg';
+        const meta = noun === 'spend' ? (classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable') : `${c.pct}% of ${noun}`;
+        // Spending: budget status pill (falls back to vs-last when no budget applies). Income: vs last.
+        const status = (noun === 'spend' && budgetPill(c.name, c.amt))
+            || `<span class="${colour}">${fmtPct(c.momPct, { sign:true })} vs last</span>`;
         return `<div class="cat-row" onclick="openSubview('${c.name.replace(/'/g,"\\'")}')">
-            <div class="cat-icon">${c.icon}</div>
+            <span class="ico-chip cat-icon">${iconImg(c.icon, 16)}</span>
             <div class="cat-info">
-                <div class="cat-name">${c.name}</div>
-                <div class="cat-meta">${c.tx} transactions · ${c.pct}% of ${noun}${noun === 'spend' ? budgetInline(c.name, c.amt) : ''}</div>
+                <span class="cat-name">${c.name}</span>
+                <span class="cat-meta">${c.tx} transaction${c.tx === 1 ? '' : 's'} · ${meta}</span>
             </div>
-            <div class="cat-right">
-                <div class="cat-amt">£${c.amt.toLocaleString()}</div>
-                <div class="cat-pct" style="color:${colour}">${arrow} ${Math.abs(c.momPct)}% MoM</div>
-            </div>
-            <div class="cat-arrow">›</div>
+            <div class="share-bar"><div style="width:${c.amt / max * 100}%;background:${c.color}"></div></div>
+            <span class="cat-amt">${fmtMoney(c.amt)}</span>
+            <span class="cat-pct">${status}</span>
+            <img class="cat-arrow" src="${LUCIDE('chevron-right')}" alt="">
         </div>`;
     }).join('') || `<div class="empty-state">No ${noun} in this period</div>`;
 }
@@ -2442,10 +2778,11 @@ function renderRecurring() {
     const V = VIEW;
     document.getElementById('rec-rows').innerHTML = (V.recurring || []).map(r =>
         `<div class="rec-row">
-            <div class="rec-icon">${r.icon}</div>
-            <span class="rec-name">${r.name}</span>
-            <span class="rec-date">${r.date}</span>
-            <span class="rec-amt">£${r.amt.toFixed(2)}</span>
+            <div class="rec-info">
+                <span class="rec-name">${r.name}</span>
+                <span class="rec-date">Monthly · ${r.date}</span>
+            </div>
+            <span class="rec-amt">${fmtMoney(r.amt, { mono:true, decimals:2 })}</span>
         </div>`
     ).join('') || '<div class="empty-state">No recurring payments detected</div>';
 }
@@ -2453,42 +2790,71 @@ function renderRecurring() {
 /* ── SUBVIEW ───────────────────────────────────────── */
 function openSubview(name) {
     const d = catDetail(name);
+    const isInc = CAT_MODE === 'income';
+    const vc = activeCats().find(c => c.name === name);          // this period's row (vs-last, colour)
+    const color = (vc && vc.color) || PALETTE[0];
     document.getElementById('cat-list-view').style.display = 'none';
     document.getElementById('cat-subview').classList.add('active');
-    document.getElementById('sv-icon').textContent  = d.icon;
+    document.getElementById('sv-icon').innerHTML  = iconImg(d.icon, 20);
     document.getElementById('sv-title').textContent = d.title;
-    document.getElementById('sv-total').textContent = `£${d.total.toLocaleString()} this period · ${d.tx} transactions`;
+    document.getElementById('sv-total').textContent =
+        `${isInc ? 'Income' : (classOf(name) === 'fixed' ? 'Fixed' : 'Variable')} · ${VIEW.rangeLabel}`;
 
+    // Stat strip: spent vs budget (or this period's total) + three stat cells
+    const P = periodProgress();
+    const b = !isInc && budgetFlagAllowed() ? BUDGETS[name] : null;
+    const target = b && b.target > 0 ? b.target : 0;
+    let hero;
+    if (target) {
+        const pct = d.total / target * 100, left = Math.round(target - d.total);
+        hero = `<span class="eyebrow">Spent vs budget</span>
+            <div class="sv-hero-amts"><span class="ov-hero-amt">${fmtMoney(d.total, { size:'hero' })}</span><span class="ov-hero-of">of ${fmtMoney(target, { size:'large' })}</span></div>
+            <div class="bar bar-lg"><div class="bar-fill ${pct > 100 ? 'over' : pct >= 85 ? 'near' : ''}" style="width:${Math.min(100, pct)}%"></div>${P.current ? `<div class="bar-pace" style="left:${Math.min(100, P.elapsed * 100)}%"></div>` : ''}</div>
+            <span class="ov-hero-line">${left >= 0 ? `<span class="pos">${fmtMoney(left)} left</span>` : `<span class="neg">${fmtMoney(-left)} over</span>`} · ${Math.round(pct)}% used${P.current ? ` with ${Math.round(P.elapsed * 100)}% of the period gone` : ''}</span>`;
+    } else {
+        hero = `<span class="eyebrow">${isInc ? 'Received' : 'Spent'} this period</span>
+            <div class="sv-hero-amts"><span class="ov-hero-amt">${fmtMoney(d.total, { size:'hero' })}</span></div>
+            <span class="ov-hero-line">${d.tx} transaction${d.tx === 1 ? '' : 's'}</span>`;
+    }
+    const stat = (label, val, sub, cls = '') =>
+        `<div class="sv-stat"><span class="kpi-l">${label}</span><span class="sv-stat-v ${cls}">${val}</span><span class="kpi-l">${sub}</span></div>`;
+    const mom = vc ? vc.momPct : 0;
+    document.getElementById('sv-strip').innerHTML = `<div class="sv-hero">${hero}</div>`
+        + stat('vs last period', fmtPct(mom, { size:'kpi', sign:true }), vc ? `Last ${fmtMoney(vc.prevAmt || 0)}` : '—',
+               mom === 0 ? '' : vc && vc.momGood ? 'pos' : 'neg')
+        + stat('Previous 5-period average', fmtMoney(d.histAvg, { size:'kpi' }), b ? `Auto-budget ${fmtMoney(b.auto)}` : `${d.histVals.length - 1} periods before this one`)
+        + stat('Avg transaction', d.tx ? fmtMoney(d.total / d.tx, { size:'kpi', decimals:2 }) : '—', `${d.tx} transaction${d.tx === 1 ? '' : 's'}`);
+
+    // Last 6 pay periods — HTML bars (current bar in the category colour, dashed average)
     if (CHART_HIST) { CHART_HIST.destroy(); CHART_HIST = null; }
-    const ctx = document.getElementById('histBar').getContext('2d');
-    CHART_HIST = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: d.histLabels,
-            datasets: [
-                { data:d.histVals, backgroundColor:d.histVals.map((_,i)=> i===d.histVals.length-1 ? '#D4A69A' : 'rgba(44,33,24,0.1)'), borderRadius:5, borderSkipped:false },
-                { type:'line', data:Array(d.histVals.length).fill(Math.round(d.histAvg)), borderColor:'#8B7355', borderWidth:1.5, borderDash:[4,4], pointRadius:0, fill:false },
-            ]
-        },
-        options: {
-            responsive:true, maintainAspectRatio:false,
-            plugins: {
-                legend:{display:false},
-                tooltip:{ callbacks:{ label: c => c.datasetIndex===0 ? `£${c.parsed.y}` : `Avg: £${Math.round(d.histAvg)}` } }
-            },
-            scales: {
-                x:{ grid:{display:false}, ticks:{color:'#8B7355', font:{size:10}} },
-                y:{ grid:{color:'#EDE8E3'}, ticks:{color:'#8B7355', font:{size:10}, callback:v=>'£'+v} }
-            }
-        }
-    });
+    const max = Math.max(1, d.histAvg, ...d.histVals), H = 140;
+    const last = d.histVals.length - 1;
+    document.getElementById('sv-hist-avg').textContent = `Average £${Math.round(d.histAvg).toLocaleString()}`;
+    document.getElementById('sv-hist').innerHTML = `<div class="hist-avg" style="bottom:${d.histAvg / max * H}px"></div>`
+        + d.histVals.map((v, i) => `<div class="hist-col">
+            <span class="hist-v">${fmtMoney(v, { mono:true })}</span>
+            <div class="hist-bar ${i === last ? 'cur' : ''}" style="height:${Math.max(2, v / max * H)}px${i === last ? `;background:${color}` : ''}"></div>
+        </div>`).join('');
+    document.getElementById('sv-hist-labels').innerHTML = d.histLabels.map(l => `<span>${l}</span>`).join('');
 
+    // Top merchants from this period's transactions
+    const byM = {};
+    d.txs.forEach(([amt, merchant]) => { const m = byM[merchant] || (byM[merchant] = { amt:0, n:0 }); m.amt += Math.abs(amt); m.n++; });
+    const merch = Object.entries(byM).sort((a, z) => z[1].amt - a[1].amt).slice(0, 5);
+    const mMax = merch.length ? merch[0][1].amt : 1;
+    document.getElementById('sv-merch').innerHTML = merch.map(([m, x]) => `<div class="merch-row">
+            <div class="merch-top"><span>${m}</span><span>${fmtMoney(x.amt, { decimals:2 })}</span></div>
+            <div class="share-bar"><div style="width:${x.amt / mMax * 100}%;background:${color}"></div></div>
+            <span class="kpi-l">${x.n} transaction${x.n === 1 ? '' : 's'}</span>
+        </div>`).join('') || '<div class="empty-state">No transactions</div>';
+
+    document.getElementById('sv-tx-count').textContent = `${d.tx} transaction${d.tx === 1 ? '' : 's'}`;
     document.getElementById('sv-txs').innerHTML = d.txs.length
         ? d.txs.map(([amt, merchant, date]) =>
             `<div class="tx-row">
                 <span class="tx-m">${merchant}</span>
                 <span class="tx-d">${date}</span>
-                <span class="tx-a ${amt<0?'neg':'pos'}">${amt<0?'-':'+'} £${Math.abs(amt).toFixed(2)}</span>
+                <span class="tx-a ${amt < 0 ? '' : 'pos'}">${amt < 0 ? '−' : '+'}${fmtMoney(Math.abs(amt), { mono:true, decimals:2 })}</span>
             </div>`).join('')
         : '<div class="empty-state">No transactions</div>';
 }
@@ -2645,7 +3011,7 @@ function renderBudget() {
     const totalProj = S.totalProjected;
 
     document.getElementById('bgt-period').innerHTML =
-        `${fmtRange(p.start, p.end)}<small>${isCurrent ? `pay period · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'completed pay period'}</small>`;
+        `${fmtRange(p.start, p.end)} <span class="mut">· ${isCurrent ? 'current' : 'completed'}</span>`;
     document.getElementById('bgt-next').disabled = BUDGET_OFFSET === 0;
     document.getElementById('bgt-prev').disabled = BUDGET_OFFSET >= budgetMaxOffset();
 
@@ -2653,30 +3019,31 @@ function renderBudget() {
     if (!isCurrent) {
         const out = totalBudget - totalSpent;
         safeEl.classList.toggle('over', out < 0);
-        document.getElementById('bgt-safe-v').textContent = (out < 0 ? '−£' : '£') + Math.abs(out).toLocaleString();
+        document.getElementById('bgt-safe-v').innerHTML = fmtMoney(out, { size:'large' });
         document.getElementById('bgt-safe-sub').textContent = out < 0 ? 'over budget this period' : 'under budget this period';
     } else if (safePot < 0) {
         safeEl.classList.add('over');
-        document.getElementById('bgt-safe-v').textContent = '£0/day';
+        document.getElementById('bgt-safe-v').innerHTML = fmtMoney(0, { size:'large' }) + '<span class="per">/day</span>';
         document.getElementById('bgt-safe-sub').textContent = `over-committed by £${Math.abs(Math.round(safePot)).toLocaleString()} vs est. income`;
     } else {
         safeEl.classList.remove('over');
         const perDay = daysLeft > 0 ? safePot / daysLeft : safePot;
-        document.getElementById('bgt-safe-v').textContent = '£' + Math.round(perDay).toLocaleString() + '/day';
-        document.getElementById('bgt-safe-sub').textContent = `£${Math.round(safePot).toLocaleString()} free over ${daysLeft} day${daysLeft === 1 ? '' : 's'} · after fixed + planned variable`;
+        document.getElementById('bgt-safe-v').innerHTML = fmtMoney(perDay, { size:'large' }) + '<span class="per">/day</span>';
+        document.getElementById('bgt-safe-sub').textContent = `${daysLeft} day${daysLeft === 1 ? '' : 's'} left · £${Math.round(safePot).toLocaleString()} free after fixed + planned variable`;
     }
 
-    document.getElementById('bgt-k-budget').textContent = '£' + totalBudget.toLocaleString();
-    document.getElementById('bgt-k-spent').textContent  = '£' + totalSpent.toLocaleString();
+    document.getElementById('bgt-k-budget').innerHTML = fmtMoney(totalBudget, { size:'kpi' });
+    document.getElementById('bgt-k-budget-sub').textContent = `${rows.length} categor${rows.length === 1 ? 'y' : 'ies'}`;
+    document.getElementById('bgt-k-spent').innerHTML  = fmtMoney(totalSpent, { size:'kpi' });
     document.getElementById('bgt-k-spent-sub').textContent = totalBudget ? Math.round(totalSpent / totalBudget * 100) + '% of budget' : '—';
-    document.getElementById('bgt-k-proj').textContent   = '£' + Math.round(totalProj).toLocaleString();
+    document.getElementById('bgt-k-proj').innerHTML   = fmtMoney(totalProj, { size:'kpi' });
     const projDiff = totalBudget - totalProj;
     document.getElementById('bgt-k-proj-sub').innerHTML = isCurrent
-        ? `<span style="color:${projDiff >= 0 ? 'var(--positive)' : 'var(--negative)'}">${projDiff >= 0 ? '£' + Math.round(projDiff).toLocaleString() + ' under' : '£' + Math.abs(Math.round(projDiff)).toLocaleString() + ' over'}</span>`
+        ? `<span class="${projDiff >= 0 ? 'pos' : 'neg'}">${projDiff >= 0 ? '£' + Math.round(projDiff).toLocaleString() + ' under' : '£' + Math.abs(Math.round(projDiff)).toLocaleString() + ' over'}</span> at period end`
         : 'actual';
     const left = estIncome - totalBudget;
-    document.getElementById('bgt-k-left').textContent = (left < 0 ? '−£' : '£') + Math.abs(left).toLocaleString();
-    document.getElementById('bgt-k-left-sub').textContent = `est. income £${estIncome.toLocaleString()}`;
+    document.getElementById('bgt-k-left').innerHTML = fmtMoney(left, { size:'kpi' });
+    document.getElementById('bgt-k-left-sub').textContent = `vs est. income £${estIncome.toLocaleString()}`;
 
     const tpct = totalBudget ? totalSpent / totalBudget * 100 : 0;
     const tfill = document.getElementById('bgt-total-fill');
@@ -2685,32 +3052,35 @@ function renderBudget() {
     const pace = document.getElementById('bgt-total-pace');
     pace.style.left = (isCurrent ? elapsed * 100 : 100) + '%';
     pace.style.display = isCurrent ? 'block' : 'none';
-    document.getElementById('bgt-total-lbl').textContent = `£${totalSpent.toLocaleString()} of £${totalBudget.toLocaleString()} budget`;
-    document.getElementById('bgt-total-days').textContent = isCurrent ? `${Math.round(elapsed * 100)}% through period` : 'final';
+    document.getElementById('bgt-total-lbl').innerHTML = `${fmtMoney(totalSpent)} of ${fmtMoney(totalBudget)} budgeted`;
+    document.getElementById('bgt-total-days').textContent = isCurrent ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left · ${Math.round(elapsed * 100)}% through` : 'final';
 
     const renderRows = list => list.map(r => {
         const pct = r.target ? r.spent / r.target * 100 : (r.spent > 0 ? 100 : 0);
         const cls = pct > 100 ? 'over' : pct >= 85 ? 'near' : 'under';
         const diff = Math.round(r.target - r.spent), over = diff < 0;
         const esc = r.name.replace(/'/g, "\\'");
-        const projTxt = r.projected == null ? '' : `<div class="bgt-proj">proj. £${Math.round(r.projected).toLocaleString()}</div>`;
+        const projTxt = r.projected == null ? '' : `<div class="bgt-proj">proj. ${fmtMoney(r.projected)}</div>`;
         return `<div class="bgt-row">
-            <div class="bgt-icon">${iconFor(r.name)}</div>
-            <div>
+            <span class="ico-chip bgt-icon">${iconImg(iconFor(r.name), 16)}</span>
+            <div style="min-width:0">
                 <div class="bgt-name">${r.name}</div>
-                <div class="bgt-bar"><div class="bgt-bar-fill ${cls}" style="width:${Math.min(100, pct)}%"></div>${isCurrent ? `<div class="bgt-pace" style="left:${Math.min(100, elapsed * 100)}%"></div>` : ''}</div>
-            </div>
-            <div class="bgt-fig">
-                <b>£${r.spent.toLocaleString()}</b> / £${r.target.toLocaleString()}
-                <div class="ou ${over ? 'over' : 'under'}">${over ? '£' + Math.abs(diff).toLocaleString() + ' over' : '£' + diff.toLocaleString() + ' left'}</div>
                 ${projTxt}
             </div>
-            <div>
-                <div class="bgt-inp-wrap">
+            <div class="bgt-bar"><div class="bgt-bar-fill ${cls}" style="width:${Math.min(100, pct)}%"></div>${isCurrent ? `<div class="bgt-pace" style="left:${Math.min(100, elapsed * 100)}%"></div>` : ''}</div>
+            <div class="bgt-fig">
+                <b>${fmtMoney(r.spent)}</b><span class="of"> / ${fmtMoney(r.target)}</span>
+                <div class="ou ${over ? 'over' : 'under'}">${over ? fmtMoney(Math.abs(diff)) + ' over' : fmtMoney(diff) + ' left'}</div>
+            </div>
+            <div class="bgt-inp-col">
+                <label class="bgt-inp-wrap">
+                    <span class="bgt-cur">£</span>
                     <input class="bgt-inp ${r.overridden ? 'ov' : ''}" type="number" inputmode="numeric" value="${r.target}" onchange="saveBudgetTarget('${esc}', this.value)">
-                    ${r.overridden ? `<button class="bgt-reset" title="Reset to auto" onclick="resetBudgetTarget('${esc}')">↺</button>` : ''}
-                </div>
-                <div class="bgt-auto">auto £${r.auto.toLocaleString()}</div>
+                    ${r.overridden
+                        ? `<button class="bgt-reset" title="Reset to auto (£${r.auto.toLocaleString()})" onclick="resetBudgetTarget('${esc}')"><img src="${LUCIDE('rotate-ccw')}" alt=""></button>`
+                        : '<span class="bgt-tag">auto</span>'}
+                </label>
+                ${r.overridden ? `<div class="bgt-auto">auto ${fmtMoney(r.auto)}</div>` : ''}
             </div>
         </div>`;
     }).join('');
@@ -2863,11 +3233,12 @@ function renderInsights(tab, pool) {
     if (!el) return;
     const picks = pickInsights(pool || buildInsights(), tab);
     if (!picks.length) {
-        el.innerHTML = `<div class="insight-card info"><div class="insight-ico">✅</div><div class="insight-txt">Nothing needs your attention right now.</div></div>`;
+        el.innerHTML = `<div class="insight-card good"><span class="insight-dot"></span><div class="insight-txt">Nothing needs your attention right now.</div></div>`;
         return;
     }
+    // i.icon (emoji) is ignored on screen — tone drives an 8px dot instead.
     el.innerHTML = picks.map(i =>
-        `<div class="insight-card ${i.tone}" onclick="gotoTab('${i.navTab}')"><div class="insight-ico">${i.icon}</div><div class="insight-txt">${i.text}</div></div>`
+        `<div class="insight-card ${i.tone}" onclick="gotoTab('${i.navTab}')"><span class="insight-dot"></span><div class="insight-txt">${i.text}</div></div>`
     ).join('');
 }
 function renderAllInsights() { const all = buildInsights(); ['overview', 'categories', 'budget', 'wealth', 'income'].forEach(t => renderInsights(t, all)); }
@@ -2883,12 +3254,14 @@ function switchTab(name, el) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     el.classList.add('active');
+    document.getElementById('page-title').textContent = el.textContent.trim();
+    document.querySelector('.main').dataset.tab = name;
     if (name === 'wealth') { renderWealth(); Prices.refresh(false); }  // render + pull live prices if stale
     if (name === 'budget') renderBudget();
     renderInsights(name);
 }
 function setToggle(mode, el) {
-    document.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));
+    el.parentElement.querySelectorAll('.tog-btn').forEach(b => b.classList.remove('active'));   // only this toggle group
     el.classList.add('active');
     // Merchant view to be wired in a later pass; currently re-renders category rows.
     renderCatRows();
@@ -2904,7 +3277,7 @@ const BICOBG= { isa:'rgba(212,166,154,0.15)', investment:'rgba(100,130,200,0.15)
    WEALTH TAB — net worth · savings + investments
    3 levels: landing → type (accounts) → account (holdings)
    ════════════════════════════════════════════════════ */
-const TYPECOL = { isa:'#D4A69A', investment:'#A8C4D4', gia:'#8FB0C9', savings:'#7BA68A', pension:'#B59B6B', crypto:'#D69E5A' };
+const TYPECOL = { isa:'#00dfd8', investment:'#0070f3', gia:'#50e3c2', savings:'#f9cb28', pension:'#ff0080', crypto:'#7928ca' };
 const GROUP   = { isa:'savings', savings:'savings', investment:'investments', gia:'investments', crypto:'investments', pension:'investments' };
 const HOLDINGS_TYPES = ['investment', 'gia', 'crypto'];
 function groupOf(type)      { return GROUP[type] || 'savings'; }
@@ -2935,9 +3308,15 @@ function renderWealthLanding() {
     const total = netWorthTotal();
     const prevTotal = ACCOUNTS.reduce((s,a) => s + (+a.prev || 0), 0);
     const diff = total - prevTotal;
-    document.getElementById('nw-total').textContent = '£' + Math.round(total).toLocaleString();
-    document.getElementById('nw-change').textContent = diff === 0 ? '→ No change vs last entry'
-        : (diff > 0 ? `↑ +£${Math.round(diff).toLocaleString()} vs last entry` : `↓ -£${Math.abs(Math.round(diff)).toLocaleString()} vs last entry`);
+    document.getElementById('nw-total').innerHTML = fmtMoney(total, { size:'large' });
+    const chEl = document.getElementById('nw-change');
+    const chPct = prevTotal ? ` (${fmtPct(diff / prevTotal * 100, { sign:true, decimals:1 })})` : '';
+    chEl.innerHTML = Math.round(diff) === 0 ? 'No change since last entry' : `${fmtMoney(diff, { sign:true })}${chPct} since last entry`;
+    chEl.className = 'nw-change ' + (Math.round(diff) > 0 ? 'pos' : Math.round(diff) < 0 ? 'neg' : 'mut');
+    // Price status for all holdings-type accounts (only when live prices are on and there's something live)
+    const allH = ACCOUNTS.filter(a => isHoldingsType(a.type)).flatMap(a => holdingsFor(a.name));
+    document.getElementById('pb-landing').innerHTML =
+        (Prices.enabled() && allH.some(h => h.priceMode === 'live')) ? Prices.barHTML(allH) : '';
     renderTypeDonut(total);
     renderGroupDonut('savings');
     renderGroupDonut('investments');
@@ -2950,7 +3329,18 @@ function renderTypeDonut(total) {
     const byType = {};
     ACCOUNTS.forEach(a => { const v = accountValue(a); if (v) byType[a.type] = (byType[a.type] || 0) + v; });
     const cats = Object.entries(byType).map(([type, amt]) => ({ name:BLBL[type] || type, amt:Math.round(amt), color:TYPECOL[type] || '#C9B8A8' }));
-    CHART_NW = makeDonut('nwChart', 'nw-donut-total', 'nw-legend', cats, Math.round(total), 'net worth');
+    CHART_NW = makeDonut('nwChart', 'nw-donut-total', 'nw-legend', cats, Math.round(total), '');   // no subtitle under the total
+}
+
+// Accounts take their type colour; a second account of the same type falls back to the palette.
+function accountColors(accs) {
+    const used = new Set();
+    return accs.map((a, i) => {
+        let color = TYPECOL[a.type];
+        if (!color || used.has(color)) color = PALETTE[i % PALETTE.length];
+        used.add(color);
+        return color;
+    });
 }
 
 /* Donuts 2 & 3 — accounts within a group */
@@ -2960,26 +3350,31 @@ function renderGroupDonut(group) {
     else       { if (CHART_INV) { CHART_INV.destroy(); CHART_INV = null; } }
     const accs = accountsInGroup(group);
     const tot  = accs.reduce((s,a) => s + accountValue(a), 0);
-    const cats = accs.map((a,i) => ({ name:a.name, amt:Math.round(accountValue(a)), color:PALETTE[i % PALETTE.length] })).filter(c => c.amt > 0);
+    const cols = accountColors(accs);
+    const cats = accs.map((a,i) => ({ name:a.name, amt:Math.round(accountValue(a)), color:cols[i] })).filter(c => c.amt > 0);
     const chart = makeDonut(isSav ? 'savChart' : 'invChart', isSav ? 'sav-donut-total' : 'inv-donut-total',
-                            isSav ? 'sav-legend' : 'inv-legend', cats, Math.round(tot), isSav ? 'savings' : 'invested');
+                            isSav ? 'sav-legend' : 'inv-legend', cats, Math.round(tot), '');
     if (isSav) CHART_SAV = chart; else CHART_INV = chart;
 }
 
 function renderTypeCards() {
-    const groups = [ { key:'savings', label:'Savings', icon:'💰' }, { key:'investments', label:'Investments', icon:'📈' } ];
+    const groups = [ { key:'savings', label:'Savings', icon:'piggy-bank' }, { key:'investments', label:'Investments', icon:'trending-up' } ];
     document.getElementById('wealth-types').innerHTML = groups.map(g => {
         const accs = accountsInGroup(g.key);
         const tot  = accs.reduce((s,a) => s + accountValue(a), 0);
+        const ch   = accs.reduce((s,a) => s + accountValue(a) - (+a.prev || 0), 0);   // same per-account change as the drill-in
         const n    = accs.length;
-        return `<div class="acc-card clickable" onclick="openWealthGroup('${g.key}')">
-            <div class="acc-type-icon" style="background:rgba(212,166,154,0.14)">${g.icon}</div>
-            <div class="acc-info">
-                <div class="acc-name">${g.label}</div>
-                <div class="acc-inst">${n} account${n === 1 ? '' : 's'}</div>
+        const types = [...new Set(accs.map(a => BLBL[a.type] || a.type))].join(', ');
+        const chR = Math.round(ch);
+        return `<div class="type-row" onclick="openWealthGroup('${g.key}')">
+            <span class="ico-chip"><img src="${LUCIDE(g.icon)}" alt=""></span>
+            <div class="type-info">
+                <span class="type-name">${g.label}</span>
+                <span class="type-sub">${n} account${n === 1 ? '' : 's'}${types ? ' · ' + types : ''}</span>
             </div>
-            <div style="text-align:right"><div class="acc-bal">£${Math.round(tot).toLocaleString()}</div></div>
-            <div class="acc-chev">›</div>
+            <span class="type-delta ${chR > 0 ? 'pos' : chR < 0 ? 'neg' : 'mut'}">${chR === 0 ? 'No change' : fmtMoney(ch, { sign:true })}</span>
+            <span class="type-val">${fmtMoney(tot, { size:'kpi' })}</span>
+            <img class="cat-arrow" src="${LUCIDE('chevron-right')}" alt="">
         </div>`;
     }).join('');
 }
@@ -3063,8 +3458,9 @@ function accountValue(a) {
 
 const plClass = n => n > 0 ? 'pl-pos' : n < 0 ? 'pl-neg' : '';
 const plTxt   = n => (n > 0 ? '+' : n < 0 ? '−' : '') + '£' + Math.abs(Math.round(n)).toLocaleString();
-function kpiCard(name, val, cls) {
-    return `<div class="ckpi"><div class="ckpi-name">${name}</div><div class="ckpi-val ${cls||''}">${val}</div></div>`;
+// pct (optional): "↑ 2.1%" right-aligned on the value's baseline
+function kpiCard(name, val, cls, pct) {
+    return `<div class="ckpi"><div class="ckpi-name">${name}</div><div class="ckpi-row"><div class="ckpi-val ${cls||''}">${val}</div>${pct ? `<span class="ckpi-pct ${cls||''}">${pct}</span>` : ''}</div></div>`;
 }
 
 /* Level 1 — a group's accounts (investment cards drill in; others edit/delete inline) */
@@ -3073,6 +3469,8 @@ function renderWealthType(group) {
     const tot  = accs.reduce((s,a) => s + accountValue(a), 0);
     const isInv = group === 'investments';
     document.getElementById('wt-title').textContent = isInv ? 'Investments' : 'Savings';
+    document.getElementById('wt-crumb').textContent = isInv ? 'Investments' : 'Savings';
+    const arrowPct = p => `${p >= 0 ? '↑' : '↓'} ${Math.abs(p).toFixed(1)}%`;
     if (isInv) {
         const hAccs = accs.filter(a => isHoldingsType(a.type));
         const val  = hAccs.reduce((s,a) => s + accountInvValue(a.name), 0);
@@ -3080,43 +3478,45 @@ function renderWealthType(group) {
         const gain = val - cost;
         const gainPct = cost ? gain / cost * 100 : 0;
         document.getElementById('wt-kpis').innerHTML =
-            kpiCard('Total value', '£' + Math.round(tot).toLocaleString()) +
-            kpiCard('Gain / loss', `${plTxt(gain)} · ${gainPct >= 0 ? '+' : '−'}${Math.abs(gainPct).toFixed(1)}%`, plClass(gain)) +
-            kpiCard('Holdings cost', '£' + Math.round(cost).toLocaleString());
+            kpiCard('Total value', fmtMoney(tot, { size:'kpi' })) +
+            kpiCard('Gain / loss', fmtMoney(Math.abs(gain), { size:'kpi' }), plClass(gain), cost ? arrowPct(gainPct) : '') +
+            kpiCard('Holdings cost', fmtMoney(cost, { size:'kpi' }));
     } else {
         const nwt = netWorthTotal();
+        const prev = accs.reduce((s,a) => s + (+a.prev || 0), 0);
+        const ch = tot - prev;
         document.getElementById('wt-kpis').innerHTML =
-            kpiCard('Total savings', '£' + Math.round(tot).toLocaleString()) +
-            kpiCard('Accounts', String(accs.length)) +
-            kpiCard('Share of net worth', (nwt ? Math.round(tot / nwt * 100) : 0) + '%');
+            kpiCard('Total value', fmtMoney(tot, { size:'kpi' })) +
+            kpiCard('Change since last entry', fmtMoney(Math.abs(ch), { size:'kpi' }), plClass(ch), prev ? arrowPct(ch / prev * 100) : '') +
+            kpiCard('Share of net worth', fmtPct(nwt ? tot / nwt * 100 : 0, { size:'kpi' }));
     }
     document.getElementById('pb-type').innerHTML = isInv ? Prices.barHTML(accs.flatMap(a => holdingsFor(a.name))) : '';
-    document.getElementById('wt-acc-list').innerHTML = accs.map(a => {
+    const cols = accountColors(accs);
+    document.getElementById('wt-acc-list').innerHTML = accs.map((a, i) => {
         const idx = ACCOUNTS.indexOf(a);
         const val = accountValue(a);
         const clickable = isHoldingsType(a.type);
-        const ch = val - (+a.prev || 0);
-        const chTxt = ch === 0 ? '→ unchanged' : (ch > 0 ? `↑ +£${Math.round(ch).toLocaleString()}` : `↓ -£${Math.abs(Math.round(ch)).toLocaleString()}`);
-        const chCol = ch > 0 ? 'var(--positive)' : ch < 0 ? 'var(--negative)' : 'var(--muted)';
-        let sub = a.inst || '—';
+        const ch = Math.round(val - (+a.prev || 0));
+        const chTxt = ch === 0 ? '→ unchanged' : (ch > 0 ? `↑ +£${ch.toLocaleString()}` : `↓ −£${Math.abs(ch).toLocaleString()}`);
+        let sub = [BLBL[a.type] || a.type, a.inst].filter(Boolean).join(' · ');
         if (clickable) { const n = holdingsFor(a.name).length; sub += ' · ' + (n ? `${n} holding${n === 1 ? '' : 's'}` : 'no holdings — tap to add'); }
+        else if (isInv) sub += ' · balance entered manually';
+        if (a.updated) sub += ` · updated ${a.updated}`;
         const tail = clickable
-            ? '<div class="acc-chev">›</div>'
-            : `<div style="display:flex;gap:5px;margin-left:10px">
-                <button class="log-del" title="Edit" onclick="event.stopPropagation();openModal(${idx})">✎</button>
-                <button class="log-del" title="Delete" onclick="event.stopPropagation();deleteAccount(${idx})">×</button>
+            ? `<img class="cat-arrow" src="${LUCIDE('chevron-right')}" alt="">`
+            : `<div class="acc-tail">
+                <button class="icon-btn" title="Edit" onclick="event.stopPropagation();openModal(${idx})"><img src="${LUCIDE('pencil')}" alt=""></button>
+                <button class="icon-btn danger" title="Delete" onclick="event.stopPropagation();deleteAccount(${idx})"><img src="${LUCIDE('trash-2')}" alt=""></button>
             </div>`;
         const open = clickable ? ` onclick="openWealthAccount('${a.name.replace(/'/g, "\\'")}')"` : '';
-        return `<div class="acc-card${clickable ? ' clickable' : ''}"${open}>
-            <div class="acc-type-icon" style="background:${BICOBG[a.type] || BICOBG.savings}">${BICO[a.type] || '💰'}</div>
-            <div class="acc-info">
-                <div class="acc-name">${a.name} <span class="acc-badge ${BADGE[a.type] || 'b-savings'}">${BLBL[a.type] || a.type}</span></div>
-                <div class="acc-inst">${sub}</div>
+        return `<div class="type-row acc-row${clickable ? ' clickable' : ''}"${open}>
+            <span class="acc-swatch" style="background:${cols[i]}"></span>
+            <div class="type-info">
+                <span class="type-name">${a.name}</span>
+                <span class="type-sub">${sub}</span>
             </div>
-            <div style="text-align:right">
-                <div class="acc-bal">£${Math.round(val).toLocaleString()}</div>
-                <div class="acc-ch" style="color:${chCol}">${chTxt}</div>
-            </div>
+            <span class="type-delta ${ch > 0 ? 'pos' : ch < 0 ? 'neg' : 'mut'}">${chTxt}</span>
+            <span class="type-val">${fmtMoney(val, { size:'kpi' })}</span>
             ${tail}
         </div>`;
     }).join('') || `<div class="empty-state">No ${isInv ? 'investment' : 'savings'} accounts yet — add one below.</div>`;
@@ -3132,44 +3532,49 @@ function renderWealthAccount(name) {
     const gain = val - cost;
     const gainPct = cost ? gain / cost * 100 : 0;
 
-    document.getElementById('inv-acc-title').innerHTML =
-        `${name} <span class="acc-badge ${BADGE[acc?.type] || 'b-investment'}" style="vertical-align:middle">${BLBL[acc?.type] || 'Investment'}</span>`;
+    document.getElementById('inv-acc-title').textContent = name;
+    document.getElementById('wa-crumb').textContent = name;
+    document.getElementById('inv-acc-sub').textContent = `${BLBL[acc?.type] || 'Investment'} · ${hs.length} holding${hs.length === 1 ? '' : 's'}`;
     document.getElementById('wa-edit').onclick = () => openModal(idx);
     document.getElementById('wa-del').onclick  = () => deleteAccount(idx);
+    const today = Prices.dayPctFor(hs);
+    const hasLive = hs.some(h => h.priceMode === 'live' && h.dayPct != null);
     document.getElementById('inv-acc-kpis').innerHTML =
-        kpiCard('Value', '£' + Math.round(val).toLocaleString()) +
-        kpiCard('Gain / loss', `${plTxt(gain)} · ${gainPct >= 0 ? '+' : '−'}${Math.abs(gainPct).toFixed(1)}%`, plClass(gain)) +
-        kpiCard('Cost basis', '£' + Math.round(cost).toLocaleString());
+        kpiCard('Account value', fmtMoney(val, { size:'kpi' })) +
+        kpiCard('Gain / loss', fmtMoney(Math.abs(gain), { size:'kpi' }), plClass(gain), cost ? `${gain >= 0 ? '↑' : '↓'} ${Math.abs(gainPct).toFixed(1)}%` : '') +
+        kpiCard('Today', hasLive ? fmtPct(today, { size:'kpi', sign:true, decimals:1 }) : '—', hasLive ? plClass(today) : '');
 
     document.getElementById('pb-acct').innerHTML = Prices.barHTML(hs);
     renderTreemap(hs, val);
 
     document.getElementById('inv-holdings-list').innerHTML = hs.map((h, i) => {
         const hv = holdingValue(h), hc = holdingCost(h), g = hv - hc;
-        const gp = hc ? g / hc * 100 : 0;
         const pct = val ? Math.round(hv / val * 100) : 0;
         const st = Prices.status(h);
-        const dot = `<span class="hstat ${st}" title="${st === 'fresh' ? 'live' : st}"></span>`;
-        const price = `£${(+h.lastPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+        const tag = `<span class="hstat ${st}">${st === 'fresh' ? 'LIVE' : st === 'stale' ? 'STALE' : 'MANUAL'}</span>`;
         const native = (h.priceMode === 'live' && h.nativePrice != null && h.nativeCurrency && h.nativeCurrency !== 'GBP')
             ? ` (${(+h.nativePrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${h.nativeCurrency})` : '';
         const day = (h.priceMode === 'live' && h.dayPct != null)
             ? ` · <span class="${h.dayPct >= 0 ? 'pl-pos' : 'pl-neg'}">${h.dayPct >= 0 ? '+' : '−'}${Math.abs(h.dayPct).toFixed(2)}% today</span>` : '';
-        return `<div class="acc-card">
-            <div class="acc-info">
-                <div class="acc-name">${h.ticker || '—'} <span class="acc-inst" style="margin:0">${pct}%</span>${dot}</div>
-                <div class="hold-sub">${(+h.units || 0)} @ £${(+h.avgCost || 0).toLocaleString()} → ${price}${native}${day}</div>
+        const sub = [h.name, `${pct}% of account`].filter(Boolean).join(' · ');
+        return `<div class="hold-row">
+            <div class="hold-name">
+                <span class="hold-bar" style="background:${PALETTE[i % PALETTE.length]}"></span>
+                <div class="hold-txt">
+                    <span class="hold-t">${h.ticker || '—'} ${tag}</span>
+                    <span class="hold-sub">${sub}${day}</span>
+                </div>
             </div>
-            <div style="text-align:right">
-                <div class="acc-bal">£${Math.round(hv).toLocaleString()}</div>
-                <div class="acc-ch ${plClass(g)}">${plTxt(g)} · ${gp >= 0 ? '+' : '−'}${Math.abs(gp).toFixed(1)}%</div>
-            </div>
-            <div style="display:flex;gap:5px;margin-left:10px">
-                <button class="log-del" title="Edit" onclick="openHoldingModal(${i})">✎</button>
-                <button class="log-del" title="Delete" onclick="deleteHolding(${i})">×</button>
+            <span class="hold-num">${fmtMono(h.units)}</span>
+            <span class="hold-num" title="Avg cost £${(+h.avgCost || 0).toLocaleString()}${native}">${fmtMoney(+h.lastPrice || 0, { mono:true, decimals:2 })}</span>
+            <span class="hold-val">${fmtMoney(hv)}</span>
+            <span class="hold-gain ${plClass(g)}">${plTxt(g)}</span>
+            <div class="acc-tail">
+                <button class="icon-btn" title="Edit" onclick="openHoldingModal(${i})"><img src="${LUCIDE('pencil')}" alt=""></button>
+                <button class="icon-btn danger" title="Delete" onclick="deleteHolding(${i})"><img src="${LUCIDE('trash-2')}" alt=""></button>
             </div>
         </div>`;
-    }).join('') || '<div class="empty-state">No holdings yet — add one below.</div>';
+    }).join('') || '<div class="empty-state">No holdings yet — add one with Add Holding.</div>';
 }
 
 function renderTreemap(hs, total) {
@@ -3178,20 +3583,21 @@ function renderTreemap(hs, total) {
     if (!canvas || !hs.length) return;
     const tree = hs.map(h => {
         const hv = holdingValue(h), hc = holdingCost(h);
-        return { ticker:h.ticker || '—', value:Math.max(hv, 0.01), pl:hv - hc, pct:total ? Math.round(hv / total * 100) : 0 };
+        return { ticker:h.ticker || '—', value:Math.max(hv, 0.01), pl:hv - hc, pct:total ? Math.round(hv / total * 100) : 0,
+                 color:PALETTE[hs.indexOf(h) % PALETTE.length] };
     });
     CHART_TREEMAP = new Chart(canvas.getContext('2d'), {
         type: 'treemap',
         data: { datasets: [{
             tree, key: 'value',
-            borderWidth: 2, borderColor: '#FFFFFF', spacing: 1,
-            backgroundColor: (c) => {
-                if (c.type !== 'data') return 'transparent';
-                return c.raw._data.pl >= 0 ? '#7BA68A' : '#C47A6E';
-            },
+            borderWidth: 0, borderRadius: 6, spacing: 2,
+            backgroundColor: (c) => c.type === 'data' ? c.raw._data.color : 'transparent',
             labels: {
-                display: true, color: '#FFFFFF', font: { size: 13, weight: '600' }, family: 'Inter',
-                formatter: (c) => [c.raw._data.ticker, c.raw._data.pct + '%'],
+                display: true, align: 'left', position: 'top', padding: 12,
+                // light tiles (cyan / yellow / mint / grey) take ink text
+                color: (c) => ['#00dfd8', '#f9cb28', '#50e3c2', '#a1a1a1'].includes(c.raw && c.raw._data.color) ? '#171717' : '#FFFFFF',
+                font: [{ size: 14, weight: '600', family: 'Geist' }, { size: 13, family: 'Geist' }],
+                formatter: (c) => [c.raw._data.ticker, `${c.raw._data.pct}% · £${Math.round(c.raw._data.value).toLocaleString()}`],
             },
         }]},
         options: {
@@ -3314,7 +3720,7 @@ const Prices = {
     async refresh(force = false) {
         if (!this.enabled() || PRICES_UPDATING) return;
         PRICES_UPDATING = true;
-        ['pb-type', 'pb-acct'].forEach(id => { const el = document.getElementById(id); if (el && el.innerHTML) el.innerHTML = '<span class="pb-when">updating prices…</span>'; });
+        ['pb-landing', 'pb-type', 'pb-acct'].forEach(id => { const el = document.getElementById(id); if (el && el.innerHTML) el.innerHTML = '<span class="pb-when">Updating prices…</span>'; });
         try {
             const syms = this.neededSymbols().filter(s => force || !this.fresh(s));
             await Promise.allSettled(syms.map(async s => {
@@ -3373,10 +3779,12 @@ const Prices = {
         const ts = this.lastUpdated();
         const when = ts ? new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '—';
         const dp = this.dayPctFor(hs);
-        const dpTxt = `Today ${dp >= 0 ? '+' : '−'}${Math.abs(dp).toFixed(2)}%`;
-        return `<button class="chip" onclick="Prices.refresh(true)"${PRICES_UPDATING ? ' disabled' : ''}>⟳ Refresh</button>
-                <span class="pb-day ${dp >= 0 ? 'pl-pos' : 'pl-neg'}">${dpTxt}</span>
-                <span class="pb-when">${PRICES_UPDATING ? 'updating…' : 'as of ' + when}</span>`;
+        const dpTxt = `Today ${dp >= 0 ? '+' : '−'}${Math.abs(dp).toFixed(1)}%`;
+        const fresh = ts && (Date.now() - ts) < PRICE_TTL * 2;
+        return `<span class="pb-status"><span class="pb-dot ${fresh ? 'fresh' : ''}"></span>
+                    <span class="pb-when">${PRICES_UPDATING ? 'Updating prices…' : 'Prices as of ' + when}</span> ·
+                    <span class="pb-day ${dp >= 0 ? 'pos' : 'neg'}">${dpTxt}</span></span>
+                <button class="pb-refresh" onclick="Prices.refresh(true)"${PRICES_UPDATING ? ' disabled' : ''}><img src="${LUCIDE('refresh-cw')}" alt="">Refresh</button>`;
     },
 };
 
@@ -3399,16 +3807,16 @@ async function testSymbol() {
             try { PRICE_CACHE[FX_SYMBOLS[d.currency]] = await Prices.fetchSymbol(FX_SYMBOLS[d.currency]); } catch (e) {}
         }
         const gbp = Prices.toGBP(d.raw, d.currency);
-        res.innerHTML = `<span class="pl-pos">✓ ${sym}: ${d.raw} ${d.currency}${gbp != null ? ` ≈ £${gbp.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}</span>`;
+        res.innerHTML = `<img src="${LUCIDE('check')}" alt=""><span class="pl-pos">${sym}: ${d.raw} ${d.currency}${gbp != null ? ` ≈ £${gbp.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}</span>`;
     } catch (e) {
-        res.innerHTML = `<span class="pl-neg">✗ ${sym}: ${e.message}</span>`;
+        res.innerHTML = `<img src="${LUCIDE('x')}" alt=""><span class="pl-neg">${sym}: ${e.message}</span>`;
     }
 }
 
 /* ── INCOME CALCULATOR ─────────────────────────────── */
 const PA = 12570, BRL = 50270, UEL = 50270, NIL = 12570;
-const fmt  = n => '£' + Math.round(n).toLocaleString();
-const fmtN = n => '-£' + Math.round(n).toLocaleString();
+const fmt  = n => fmtMoney(Math.round(n), { mono:true });          // HTML (Geist Mono figures)
+const fmtN = n => '−' + fmtMoney(Math.round(n), { mono:true });
 function calcTax(g) { if (g<=PA) return 0; if (g<=BRL) return (g-PA)*0.20; return (BRL-PA)*0.20 + (g-BRL)*0.40; }
 function calcNI(g)  { if (g<=NIL) return 0; if (g<=UEL) return (g-NIL)*0.08; return (UEL-NIL)*0.08 + (g-UEL)*0.02; }
 
@@ -3445,12 +3853,11 @@ function recalc() {
     const troncMon = tronc * hrs;
     const grossMon = baseMon + troncMon;
     const grossAnn = grossMon * 12, baseAnn = baseMon * 12;
-    const money2 = n => '£' + n.toFixed(2);
-    document.getElementById('job-eff').textContent       = `${money2(rate + tronc)}/hr`;
-    document.getElementById('job-base').textContent      = fmt(baseMon);
-    document.getElementById('job-tronc-amt').textContent = fmt(troncMon);
-    document.getElementById('job-gross').textContent     = fmt(grossMon);
-    document.getElementById('job-annual').textContent    = fmt(grossAnn) + '/yr';
+    document.getElementById('job-eff').innerHTML         = fmtMoney(rate + tronc, { mono:true, decimals:2 }) + '/hr';
+    document.getElementById('job-base').innerHTML      = fmt(baseMon);
+    document.getElementById('job-tronc-amt').innerHTML = fmt(troncMon);
+    document.getElementById('job-gross').innerHTML     = fmt(grossMon);
+    document.getElementById('job-annual').innerHTML      = fmt(grossAnn) + '/yr';
 
     // PAYE
     // Tronc run by an independent troncmaster is taxed but NI-free, so NI is
@@ -3466,25 +3873,25 @@ function recalc() {
     const ni  = calcNI(niAnn);
     const net = grossAnn - tax - ni - pension;
     const netMon = net / 12;
-    document.getElementById('c-gross').textContent   = fmt(grossMon);
-    document.getElementById('c-tax').textContent     = fmtN(tax / 12);
-    document.getElementById('c-ni').textContent      = fmtN(ni / 12);
+    document.getElementById('c-gross').innerHTML   = fmt(grossMon);
+    document.getElementById('c-tax').innerHTML     = fmtN(tax / 12);
+    document.getElementById('c-ni').innerHTML      = fmtN(ni / 12);
     document.getElementById('c-ni-note').textContent = troncNIFree ? '(on base only)' : '(on base + tronc)';
-    document.getElementById('c-pension').textContent = fmtN(pension / 12);
-    document.getElementById('c-net').textContent     = fmt(netMon);
+    document.getElementById('c-pension').innerHTML = fmtN(pension / 12);
+    document.getElementById('c-net').innerHTML       = fmtMoney(Math.round(netMon), { size:'large' });
 
     // Cash & other
     const allow  = parseFloat(document.getElementById('c-allow').value)  || 0;
     const vinted = parseFloat(document.getElementById('c-vinted').value) || 0;
     const events = parseFloat(document.getElementById('c-events').value) || 0;
     const cashMon = allow + vinted + events;
-    document.getElementById('c-cash-total').textContent = fmt(cashMon);
+    document.getElementById('c-cash-total').innerHTML = fmt(cashMon);
 
     // Grand total
     const grand = netMon + cashMon;
-    document.getElementById('gt-net').textContent   = fmt(netMon);
-    document.getElementById('gt-cash').textContent  = fmt(cashMon);
-    document.getElementById('gt-total').textContent = fmt(grand);
+    document.getElementById('gt-net').innerHTML   = fmt(netMon);
+    document.getElementById('gt-cash').innerHTML  = fmt(cashMon);
+    document.getElementById('gt-total').innerHTML   = fmtMoney(Math.round(grand), { size:'large' });
 
     LAST_INCOME = { gross:grossMon, net:netMon, cash:cashMon, grandTotal:grand };
     saveIncomeInputs();   // persist edits so they survive a reload
@@ -3533,7 +3940,7 @@ function updateTargetNote() {
     const note = document.getElementById('target-note');
     const t = INCOME_TARGETS[m];
     note.textContent = t
-        ? `✓ Target saved for ${m}: £${Math.round(t.grandTotal).toLocaleString()} total income.`
+        ? `Target saved for ${m}: £${Math.round(t.grandTotal).toLocaleString()} total income.`
         : 'Save this estimate as an income target for the chosen month.';
 }
 
