@@ -20,7 +20,9 @@ A single-file personal finance web app (`index.html`) that reads transactions li
 - **View-builder pattern:** data → `aggregate()` → `buildLiveView()/buildMockView()` → `VIEW` → renderers. Add new derived data to the view builders, not ad-hoc in renderers.
 - **Keep the mock fallback working** for every feature (it's the offline/demo state and how the UI is verified).
 - **Reuse `makeDonut()`** for any new donut; **periods** always go through `rangeFor()`/`payPeriod()` (anchored on payday: the 20th up to Sep 2026, the last Friday of the month from Oct 2026 — see `payAnchor()`).
-- **Design tokens:** CSS variables at the top — bg `#FAF7F5`, sidebar `#3D3229`, accent `#D4A69A`, positive `#7BA68A`, negative `#C47A6E`, font Inter. Reuse them; don't hardcode new colours.
+- **Design tokens (Hairline):** CSS variables at the top — ink/sidebar `#171717`, canvas `#fafafa`, card ring `--ring` (`0 0 0 1px #ebebeb`), accent/pace tick `#0070f3`, positive `#1a9e5c`, negative `#ee0000`, warning `#f5a623`, fonts Geist + Geist Mono. Chart palette is `PALETTE`; wealth type colours are `TYPECOL`. Reuse them; don't hardcode new colours.
+- **Numbers:** render money with `fmtMoney()` / `fmtPct()` / `fmtMono()` (they return HTML — set with `innerHTML`); they handle the shrunk £ / sign and the Geist Mono comma/point spacing.
+- **No emoji in the UI:** icons are Lucide (`lucide-static@0.460.0` via unpkg, `LUCIDE(name)`); data-layer emoji are mapped with `iconImg()`; insights show a tone dot.
 - Charts are module-level instances; **destroy before recreating** to avoid leaks.
 
 ## Guardrails
