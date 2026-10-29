@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-06-13. Read this first when picking the project back up._
+_Last updated: 2026-10-29. Read this first when picking the project back up._
 
 ---
 
@@ -22,7 +22,9 @@ A working, single-file personal finance dashboard (`index.html`) that reads tran
 - **Gotcha hit during setup (resolved):** the Supabase callback redirect URI must live on the OAuth client *in the project whose number matches the client-ID prefix* (`185610168060`); it was first added in the wrong project → `redirect_uri_mismatch`.
 - **Second gotcha:** signing in without granting the Sheets permission yields a 403 "insufficient scopes" on the live read. Hardened (PR follow-up `claude/sheets-scope-reauth-ic4476`): a scope/401 error now clears the token and re-prompts consent instead of silently retrying.
 
-**Next build (design in §8b):** **Budget estimator tab** — see §9 for the lined-up plan.
+**✅ DONE 2026-10-29: Hairline visual restyle (PR #19, merge `deeba45`).** Every tab, drill-in and modal restyled to the Hairline design (handoff `~/Downloads/design_handoff_emma_hairline/`, Overview = option **1c**): ink `#171717` sidebar, Geist / Geist Mono, hairline-ring cards, Lucide icons, **no emoji in the UI**. Data, Sheets, Store and calculation logic, function names and JS-used element ids unchanged — renderers just emit new markup. Details: §4 (what each screen looks like now), §6 (decisions), §7 (gotchas), §9.
+
+**Next build:** see §9 *Roadmap remaining* (Savings goals first).
 
 > Canonical file: **`index.html`** at the repo root (single file, no build step).
 
@@ -69,16 +71,16 @@ Connect Google → SheetsAPI.fetchData()
 
 ## 4. Features built
 
-**Overview** — 3 hero KPIs (Income · Spending · **Est. income next period** with a ↑/↓ vs-last-period flag); spend-over-time line (this vs last period); period comparison block; category breakdown cards (with last-period value + MoM%).
+**Overview (Hairline 1c)** — hero card: **spent vs total budget** (`renderOverviewHero`) with a progress bar (ink <85%, amber 85–100%, red over) + blue **pace tick** at % of period elapsed, "£X left · £Y/day safe to spend · pace" line; right-hand **mesh panel** shows **Est. income next period** (↑/↓ % vs last period). Below: Income · Spending KPI strip; **category ledger** (`renderCatGrid` → rows with budget bar + pace tick, "% of £budget", vs-last %, status pill); Insights card (tone dots); Period comparison. The spend-over-time line chart still renders but is **hidden** (`#lineChart` kept so `renderLine()` works) — deliberately excluded from 1c.
 
-**Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (6-period history + average line + transactions), recurring-payment detection, and an "Excluded this period" line.
+**Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (`openSubview`: spent-vs-budget strip + stats, **HTML bar chart** of the last 6 pay periods with dashed average, Top Merchants, transactions table), recurring-payment detection (card grid), and an "Excluded this period" line.
 
 **Income estimator** — one generic **hourly role** on the hospitality **tronc** model: rota hours (default **contracted hrs/week**, 48, × the 4 or 5 weeks in the pay window; type the actual rota to override) × (**base rate**, min. wage £12.71, + **tronc/hr**, currently £2.79, both editable). Tronc is taxed but NI-free when paid via an independent troncmaster (checkbox, on by default); pension applies to base pay only with a **pay-schedule card** (next payday, the hours window it covers, 4 vs 5 weeks, avg hrs/week), PAYE tax, **pension net-pay model** (defaults to 0% — not enrolled), grand total (net + cash) and **monthly "save as target"**. The ONE LDN FOH/DA roles and holiday-pay estimator were removed in Sep 2026 after the job change.
 
 **Wealth** (merged Savings + Investments) — single tab, **3-level drill-down** driven by `WEALTH_VIEW = {level, group, account}`:
 - **Level 0 (landing):** total net worth + **three donuts** — whole net worth by *type* (`renderTypeDonut`), Savings accounts, Investment accounts (`renderGroupDonut`, coloured by `PALETTE`) — then two clickable **type cards** (Savings / Investments).
 - **Level 1 (type → accounts):** that group's accounts with add/edit/delete + group KPIs. Investment (holdings) cards drill in; savings/pension cards edit/delete inline.
-- **Level 2 (investment account → holdings):** scoped KPIs + **Trading-212-style treemap** (`chartjs-chart-treemap`, tiles by £ value, ticker + %, green/red P/L) + holdings table; Edit/Delete-account buttons in the header.
+- **Level 2 (investment account → holdings):** KPIs (Account value · Gain/loss · **Today**) + **treemap** (`chartjs-chart-treemap`, tiles by £ value, **coloured by holding from `PALETTE`**, ticker + "% · £value") + holdings table (LIVE/STALE/MANUAL tag, units, price, value, gain); Edit Account / delete / Add Holding in the header.
 
 **Grouping** (`GROUP`): Savings = Cash ISA + Savings/HYSA · Investments = S&S ISA + GIA + Crypto + Pension. **Holdings-type** accounts (`HOLDINGS_TYPES` = investment/gia/crypto) get their value from holdings (`accountValue()` = Σ units×price, balance fields hidden in the modal); Pension stays a manual balance. Holdings persist in `HOLDINGS` (Store key `holdings`, keyed by account name; seeded defaults double as demo state). Donuts/treemap render lazily on tab switch (need a sized container).
 
@@ -99,6 +101,12 @@ Connect Google → SheetsAPI.fetchData()
 - **Savings withdrawals** (e.g. funding a holiday): re-tag as **`Transfer` in Emma** → auto-excluded from income; the purchase still counts as spend.
 - **Fixed categories:** Bills, Groceries, Transport, Subscriptions. Everything else = Variable.
 - **Storage:** local-only for now; chosen direction = **host now, Supabase later** (skip Google Sheets write-back).
+- **Hairline restyle (2026-10-29):** display-only. Overview = option 1c; "Spend over time" chart kept **hidden**, not deleted. Est. income lives only in the Overview hero mesh panel (removed from the KPI strip) and keeps its **"vs last period"** comparison (mockup's "vs this period" would change the calc).
+- **Colours:** design palette swapped into `PALETTE` (`#0070f3 #00dfd8 #7928ca #ff0080 #f9cb28 #50e3c2 #ff4d4d #a1a1a1`), `TYPECOL` (Cash ISA `#00dfd8`, S&S ISA `#0070f3`, Savings `#f9cb28`, Crypto `#7928ca`, Pension `#ff0080`, GIA `#50e3c2`) and the mock-data `color` fields. Accounts take their type colour; duplicates fall back to the palette (`accountColors`).
+- **Period chips hidden** on Budget, Wealth, Income and the category drill-in (`.main[data-tab]` + `:has()` CSS) — those views ignore the global period (and a period change closes the drill-in anyway).
+- **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
+- **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
+- **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 
 ---
 
@@ -108,6 +116,13 @@ Connect Google → SheetsAPI.fetchData()
 - Console **"A listener indicated an asynchronous response… message channel closed"** errors are from a **browser extension**, not this app. Ignore them.
 - Chart.js donuts need a **visible container on first paint**; they render fine after a tab switch (the container gains size). Not a bug.
 - Income estimator inputs are now persisted via `Store` (`incomeInputs`) — they survive reloads. Accounts (`accounts`), targets (`incomeTargets`), and category classes (`categoryClass`) are likewise persisted.
+- **Money formatting returns HTML:** `fmtMoney()` / `fmtPct()` / `fmtMono()` (and Income's `fmt`/`fmtN`) emit spans for the shrunk £ and tuned comma/point spacing — set them with `innerHTML`, never `textContent`.
+- **Emoji stay in the data layer** (`iconFor`, mock `icon`, insight `icon`) but are never shown: `iconImg()` maps them to Lucide icons and insights render a tone dot. Add new mappings to `EMOJI_LUCIDE`.
+- **Inline `display:block` beats flex gaps:** `closeSubview()` and `renderWealth()` set `display` inline, so `#cat-list-view`, `#wealth-landing/-type/-account` use sibling margins (`> * + *`) for spacing.
+- **`openModal()` titles via `querySelector('.modal-title')`** — the Add Account modal's title must stay the **first** `.modal-title` in the DOM.
+- **Empty donuts:** with no data Chart.js never draws, leaving the canvas at its 300px default — capped by `.donut-wrap canvas { max-width:100% }` (otherwise mobile scrolls sideways).
+- **Holding currency `GBp`** (e.g. VUAG) isn't an option in the Edit Holding Currency select (GBP/USD/EUR only) → shows blank. Pre-existing, unfixed.
+- **Headless verification:** the treemap's final animation frame doesn't paint in headless Chrome (pre-existing; a forced `draw()` shows it fine). If it's ever blank in real Chrome, set `animation:false` on that chart.
 
 ---
 
@@ -172,6 +187,10 @@ Merged (PRs #8–#10, 2026-06-14). Full canonical design lives in **§8b**. **Sh
 ### ✅ Done — Insights strip
 
 Cross-tab rules engine (`buildInsights()` → `{id,priority,tone,icon,text,domain,navTab,dedupeKey}`). A strip per tab (`#ins-<tab>`); each tab shows its domains (`TAB_DOMAINS`), Overview is a digest (best of each domain in `OVERVIEW_DOMAINS`). `pickInsights()` sorts by priority, de-dupes by category, caps at 4; clicking a card calls `gotoTab()`. 11 rules across spend/budget/save/category/wealth/income, material-only thresholds, budget rules guarded to the current pay/monthly period. Wealth rules read live `Prices` day-change + allocation. Shared `budgetSummary(offset)` extracted from `renderBudget()` so the Budget tab and insights use one projection/safe-to-spend source. Rendered from `computeAndRender`/`switchTab`/`recalc`/budget edits/`Prices.refresh`. Full mock parity. **Tunable:** the `'budget'` domain currently also surfaces safe-to-spend on the Categories strip — narrow per-insight allow-lists if that's unwanted.
+
+### ✅ Done — Hairline visual restyle
+
+Merged (PR #19, 2026-10-29). Restyled shell + Overview (1c) → Categories → Budget → Wealth → Income → drill-ins → modals to the handoff in `~/Downloads/design_handoff_emma_hairline/` (`README.md`, `DECISIONS.md`, `design/*.dc.html`). New display helpers: `fmtMoney/fmtPct/fmtNum/fmtMono`, `iconImg`/`LUCIDE`, `periodProgress`, `renderOverviewHero`, `budgetPill`, `accountColors`; `kpiCard()` gained an optional `pct`. Verified in headless Chrome at 1280px + 390px across all tabs, drill-ins and modals (no JS errors, no horizontal overflow, no emoji). Optional follow-ups: pence in Income; a `GBp` currency option (§7).
 
 ### Roadmap remaining (agreed order)
 1. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
