@@ -339,6 +339,17 @@
         .pc-row > span:first-child { color: var(--text-2); }
         .pc-row > span:last-child { font-weight: 600; white-space: nowrap; }
         .pc-row.pc-diff { padding-top: 12px; border-top: 1px solid var(--border); }
+        .tips-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+        .tips-total { font-size: 20px; font-weight: 600; letter-spacing: -0.6px; color: var(--positive); }
+        .tips-sub { font-size: 13px; color: var(--muted); margin-top: -6px; }
+        .tips-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+        .tips-form .fi, .tips-form .btn-p, #tip-note { height: 36px; }
+        .tips-list { display: flex; flex-direction: column; }
+        .tip-row { display: grid; grid-template-columns: 48px 1fr auto 28px; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+        .tip-day { color: var(--muted); font-size: 13px; }
+        .tip-note { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tip-row .icon-btn { width: 28px; height: 28px; }
+        .tips-empty { font-size: 13px; color: var(--muted); padding-top: 4px; }
 
         /* ─── DONUTS (shared: Categories + Wealth) ── */
         .donut-card { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -1144,6 +1155,17 @@
                 <span class="eyebrow">Insights</span>
                 <div class="insight-strip" id="ins-overview"></div>
             </div>
+            <div class="side-card" id="tips-card">
+                <div class="tips-head"><span class="eyebrow">Cash tips</span><span class="tips-total" id="tips-total">—</span></div>
+                <span class="tips-sub" id="tips-sub">—</span>
+                <div class="tips-form">
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="fi" type="number" id="tip-amt" min="0" step="0.01" placeholder="0.00" inputmode="decimal" aria-label="Tip amount" onkeydown="if(event.key==='Enter')addTip()"></div>
+                    <input class="fi" type="date" id="tip-date" aria-label="Date received">
+                    <button class="btn-p" onclick="addTip()">Add</button>
+                </div>
+                <input class="fi" type="text" id="tip-note" maxlength="60" placeholder="Note (optional), e.g. Sat dinner shift" aria-label="Note" onkeydown="if(event.key==='Enter')addTip()">
+                <div class="tips-list" id="tips-list"></div>
+            </div>
             <div class="side-card">
                 <span class="eyebrow">Period Comparison</span>
                 <div class="pc-row"><span id="pc-last-range">—</span><span id="pc-last-amt">—</span></div>
@@ -1664,7 +1686,7 @@ const Store = {
     PREFIX: 'emmaDash:',
     // App-owned keys that sync cross-device via Supabase. Transient/device-local
     // keys (priceCache, googleToken) are deliberately excluded.
-    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets'],
+    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
@@ -1869,6 +1891,7 @@ const DEFAULT_ACCOUNTS = [
 ];
 let ACCOUNTS = Store.get('accounts', clone(DEFAULT_ACCOUNTS));
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
+let CASH_TIPS = Store.get('cashTips', []);            // [{id, date:'YYYY-MM-DD', amt, note}]
 
 /* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
    Seeded with Saffron's real symbols (live-wired) but PLACEHOLDER units/cost —
@@ -2150,10 +2173,22 @@ function canonCat(name) {
     return CATEGORY_ALIASES[raw.toLowerCase()] || raw;
 }
 
+/* Cash tips — logged by hand on the Overview (cash never reaches the bank feed).
+   Merged into aggregate() as an income category, so they count towards every
+   income figure: Overview KPI, Categories → Income, drill-downs, insights. */
+const TIP_CAT = 'Cash tips';
+function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function parseDayKey(k) { const [y, m, d] = String(k).split('-').map(Number); return new Date(y, m - 1, d); }
+function tipTxs() {
+    return CASH_TIPS.map(t => ({ date:parseDayKey(t.date), amount:+t.amt || 0, category:TIP_CAT, merchant:t.note || TIP_CAT, tipId:t.id }));
+}
+function tipsIn(start, end) { return tipTxs().filter(t => t.date >= start && t.date <= end); }
+function sumAmt(txs) { return txs.reduce((s, t) => s + t.amount, 0); }
+
 function aggregate(start, end) {
     let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0;
     const map = {}, imap = {};
-    for (const t of RAW_TX) {
+    for (const t of RAW_TX.concat(tipTxs())) {
         if (t.date < start || t.date > end) continue;
         if (excluded(t.category)) { excludedTotal += Math.abs(t.amount); excludedCount++; continue; }
         const k = canonCat(t.category);
@@ -2265,15 +2300,23 @@ function buildMockView() {
         return { icon:c.icon, name:c.name, amt:c.amt, tx:c.tx, color:c.color,
                  pct:Math.round(c.amt/ts*100), prevAmt, momPct:m.pct, momGood:m.good };
     });
-    const its = INCOME_MOCK.reduce((s,c)=>s+c.amt,0);
-    const incomeCats = INCOME_MOCK.map(c => {
-        const prevAmt = c.momPct ? Math.round(c.amt / (1 + c.momPct/100)) : c.amt;
+    // Logged cash tips are real (not mock), so they join the mock income for the period.
+    const curTips = tipsIn(r.start, r.end), tipAmt = Math.round(sumAmt(curTips));
+    const prevTipAmt = Math.round(sumAmt(tipsIn(pr.start, pr.end)));
+    const incomeSrc = tipAmt > 0 ? INCOME_MOCK.concat([{
+        icon:iconFor(TIP_CAT), name:TIP_CAT, amt:tipAmt, tx:curTips.length,
+        color:PALETTE[INCOME_MOCK.length % PALETTE.length],
+        prevAmt:prevTipAmt, momPct:prevTipAmt > 0 ? Math.round((tipAmt - prevTipAmt) / prevTipAmt * 100) : 100,
+    }]) : INCOME_MOCK;
+    const its = incomeSrc.reduce((s,c)=>s+c.amt,0);
+    const incomeCats = incomeSrc.map(c => {
+        const prevAmt = c.prevAmt != null ? c.prevAmt : c.momPct ? Math.round(c.amt / (1 + c.momPct/100)) : c.amt;
         return { icon:c.icon, name:c.name, amt:c.amt, tx:c.tx, color:c.color,
                  pct:Math.round(c.amt/its*100), prevAmt, momPct:c.momPct||0, momGood:(c.momPct||0) >= 0 };
     });
     return {
         rangeLabel:r.label, prevLabel:pr.label, partial:r.partial,
-        totalSpend:ts, totalIncome:its, prevSpend:1307, prevIncome:1649,
+        totalSpend:ts, totalIncome:its, prevSpend:1307, prevIncome:1649 + prevTipAmt,
         cats, incomeCats, line:MOCK_LINE, recurring:RECURRING_MOCK,
         excludedTotal:450, excludedCount:3,
     };
@@ -2281,6 +2324,18 @@ function buildMockView() {
 
 function catDetail(name) {
     const isInc = CAT_MODE === 'income';
+    if (!CONNECTED && isInc && name === TIP_CAT) {
+        const r = rangeFor(CUR), txs = tipsIn(r.start, r.end).sort((a, b) => b.date - a.date);
+        const labels = [], vals = [];
+        for (let i = 5; i >= 0; i--) {
+            const p = payPeriod((CUR.mode === 'pay' ? (CUR.offset || 0) : 0) + i);
+            labels.push(MONTHS[p.start.getMonth()] + (i === 0 ? '*' : ''));
+            vals.push(Math.round(sumAmt(tipsIn(p.start, p.end))));
+        }
+        const avg = vals.slice(0, -1).reduce((a, b) => a + b, 0) / 5;
+        return { icon:iconFor(TIP_CAT), title:TIP_CAT, total:Math.round(sumAmt(txs)), tx:txs.length, histLabels:labels, histVals:vals, histAvg:avg,
+                 txs:txs.map(t => [t.amount, escHtml(t.merchant), fmtDay(t.date)]) };
+    }
     if (!CONNECTED) {
         const list = isInc ? INCOME_MOCK : CATS_MOCK;
         const hist = isInc ? INCOME_HIST_MOCK : HIST_MOCK;
@@ -2302,7 +2357,7 @@ function catDetail(name) {
     const avg = vals.slice(0,-1).reduce((a,b)=>a+b,0) / 5;
     const curList = isInc ? VIEW._cur.incomeList : VIEW._cur.catList;
     const c = (curList.find(x => x.name === name)) || { amt:0, tx:0, txs:[] };
-    const txs = c.txs.slice().sort((a,b) => b.date - a.date).map(t => [t.amount, t.merchant || t.category, fmtDay(t.date)]);
+    const txs = c.txs.slice().sort((a,b) => b.date - a.date).map(t => [t.amount, t.tipId ? escHtml(t.merchant) : (t.merchant || t.category), fmtDay(t.date)]);
     return { icon:iconFor(name), title:name, total:Math.round(c.amt), tx:c.tx, histLabels:labels, histVals:vals, histAvg:avg, txs };
 }
 
@@ -2477,6 +2532,7 @@ function computeAndRender() {
     refreshBudgets();   // period-independent per-category targets (auto median + overrides)
     document.getElementById('period-display').textContent = VIEW.rangeLabel;
     renderOverview();
+    renderTips();
     renderCatRows();
     renderRecurring();
     renderExcluded();
@@ -2512,6 +2568,47 @@ function renderNextIncome() {
         const t = INCOME_TARGETS[key];
         sub.textContent = t ? `saved target ${key}: £${Math.round(t.grandTotal).toLocaleString()}` : 'live estimate · next period';
     }
+}
+
+function renderTips() {
+    const el = id => document.getElementById(id);
+    if (!el('tips-card')) return;
+    const r = rangeFor(CUR), pr = prevRangeFor(CUR);
+    const txs = tipsIn(r.start, r.end).sort((a, b) => b.date - a.date || String(b.tipId).localeCompare(String(a.tipId)));
+    const total = sumAmt(txs), prev = sumAmt(tipsIn(pr.start, pr.end));
+    const dec = v => (Math.round(v * 100) % 100 ? 2 : 0);
+    el('tips-total').innerHTML = fmtMoney(total, { decimals:dec(total) });
+    const n = txs.length;
+    el('tips-sub').textContent = `${n} ${n === 1 ? 'entry' : 'entries'} this period · £${prev.toLocaleString('en-GB', { maximumFractionDigits:2 })} last period`;
+    const date = el('tip-date');
+    date.max = dayKey(new Date());
+    if (!date.value) date.value = dayKey(new Date());
+    el('tips-list').innerHTML = n ? txs.map(t => `
+        <div class="tip-row">
+            <span class="tip-day">${fmtDay(t.date)}</span>
+            <span class="tip-note">${t.merchant === TIP_CAT ? '' : escHtml(t.merchant)}</span>
+            <span>${fmtMoney(t.amount, { decimals:dec(t.amount) })}</span>
+            <button class="icon-btn danger" onclick="deleteTip('${t.tipId}')" title="Delete" aria-label="Delete tip"><img src="${LUCIDE('trash-2')}" alt=""></button>
+        </div>`).join('') : '<div class="tips-empty">No cash tips logged this period.</div>';
+}
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+function addTip() {
+    const amtEl = document.getElementById('tip-amt'), dateEl = document.getElementById('tip-date'), noteEl = document.getElementById('tip-note');
+    const amt = Math.round(parseFloat(amtEl.value) * 100) / 100;
+    if (!(amt > 0)) { amtEl.focus(); return; }
+    CASH_TIPS.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                     date:dateEl.value || dayKey(new Date()), amt, note:noteEl.value.trim() });
+    Store.set('cashTips', CASH_TIPS);
+    amtEl.value = ''; noteEl.value = '';
+    computeAndRender();
+    amtEl.focus();
+}
+function deleteTip(id) {
+    const t = CASH_TIPS.find(x => x.id === id);
+    if (!t || !confirm(`Delete £${t.amt} tip from ${fmtDay(parseDayKey(t.date))}?`)) return;
+    CASH_TIPS = CASH_TIPS.filter(x => x.id !== id);
+    Store.set('cashTips', CASH_TIPS);
+    computeAndRender();
 }
 
 function renderExcluded() {
@@ -3952,6 +4049,7 @@ function rehydrateFromStore() {
     INCOME_TARGETS = Store.get('incomeTargets', {});
     HOLDINGS       = Store.get('holdings', clone(DEFAULT_HOLDINGS));
     CATEGORY_CLASS = Store.get('categoryClass', {});
+    CASH_TIPS      = Store.get('cashTips', []);
     loadIncomeInputs();   // restore synced income-estimator edits
     recalc();
     computeAndRender();
