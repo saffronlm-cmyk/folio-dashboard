@@ -309,6 +309,9 @@
         .kpi-row { display: flex; align-items: baseline; gap: 8px; }
         .kpi-v { font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
         .kpi-d { font-size: 12px; font-weight: 500; }
+        .kpi-s { font-size: 12px; line-height: 18px; color: var(--muted); }
+        .kpi-s b { font-weight: 500; color: var(--text); }
+        .kpi-s .nw { white-space: nowrap; }   /* keep "Salary £1,650" together when the line wraps */
 
         .ov-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
         .ledger { background: var(--card); border-radius: 12px; box-shadow: var(--ring); overflow: hidden; }
@@ -1133,13 +1136,15 @@
     <!-- KPI strip -->
     <div class="kpi-strip">
         <div class="kpi-cell">
-            <span class="kpi-l">Income</span>
+            <span class="kpi-l">Income received</span>
             <div class="kpi-row"><span class="kpi-v pos" id="hero-income">—</span><span class="kpi-d" id="hero-income-mom">—</span></div>
+            <span class="kpi-s" id="hero-income-src">—</span>
             <span hidden id="hero-income-sub">—</span>
         </div>
         <div class="kpi-cell">
             <span class="kpi-l">Spending</span>
             <div class="kpi-row"><span class="kpi-v" id="hero-spend">—</span><span class="kpi-d" id="hero-spend-mom">—</span></div>
+            <span class="kpi-s" id="hero-spend-net">—</span>
             <span hidden id="hero-spend-sub">—</span>
         </div>
     </div>
@@ -1812,8 +1817,8 @@ const Sync = {
 const CATS_MOCK = [
     { icon:'🏠', name:'Bills & Utilities',  amt:340, tx:8,  color:'#0070f3' },
     { icon:'🛒', name:'Groceries',           amt:234, tx:23, color:'#00dfd8' },
-    { icon:'🛍️', name:'Shopping',            amt:178, tx:12, color:'#7928ca' },
-    { icon:'🍽️', name:'Eating Out',          amt:156, tx:15, color:'#ff0080' },
+    { icon:'🛍️', name:'Shopping',            amt:178, tx:12, color:'#7928ca', refund:25, refundTx:1 },
+    { icon:'🍽️', name:'Eating Out',          amt:156, tx:15, color:'#ff0080', refund:21, refundTx:1 },
     { icon:'📱', name:'Subscriptions',       amt:87,  tx:11, color:'#50e3c2' },
     { icon:'🚌', name:'Transport',           amt:89,  tx:31, color:'#f9cb28' },
     { icon:'🎉', name:'Entertainment',       amt:57,  tx:9,  color:'#a1a1a1' },
@@ -1842,9 +1847,9 @@ const HIST_MOCK = {
 };
 const MOCK_TX_DATA = {
     'Groceries':     [[-23.40,'Lidl','5 Jun'],[-67.20,"Sainsbury's",'3 Jun'],[-34.80,'Waitrose','1 Jun'],[-18.60,'Lidl','29 May'],[-44.10,'Tesco','26 May'],[-45.90,'M&S Food','22 May']],
-    'Eating Out':    [[-18.50,'Deliveroo','4 Jun'],[-7.80,'Pret a Manger','2 Jun'],[-42.00,'Dishoom','31 May'],[-12.40,'Leon','28 May'],[-34.60,'Wagamama','24 May']],
+    'Eating Out':    [[-18.50,'Deliveroo','4 Jun'],[21.00,'Paid back · Dishoom split','1 Jun'],[-7.80,'Pret a Manger','2 Jun'],[-42.00,'Dishoom','31 May'],[-12.40,'Leon','28 May'],[-34.60,'Wagamama','24 May']],
     'Transport':     [[-4.80,'TFL','5 Jun'],[-3.60,'TFL','4 Jun'],[-4.80,'TFL','3 Jun'],[-12.40,'Lime','1 Jun'],[-4.80,'TFL','31 May']],
-    'Shopping':      [[-34.00,'ASOS','4 Jun'],[-22.50,'Boots','2 Jun'],[-67.80,'Amazon','30 May'],[-53.70,'Zara','25 May']],
+    'Shopping':      [[25.00,'ASOS','6 Jun'],[-34.00,'ASOS','4 Jun'],[-22.50,'Boots','2 Jun'],[-67.80,'Amazon','30 May'],[-53.70,'Zara','25 May']],
     'Subscriptions': [[-20.00,'ChatGPT Plus','5 Jun'],[-18.99,'Netflix','1 Jun'],[-9.99,'Spotify','14 May'],[-5.00,'Notion','10 May'],[-0.99,'iCloud','22 May']],
     'Entertainment': [[-25.00,'Cineworld','3 Jun'],[-32.00,'Event tickets','28 May']],
 };
@@ -2185,30 +2190,56 @@ function tipTxs() {
 function tipsIn(start, end) { return tipTxs().filter(t => t.date >= start && t.date <= end); }
 function sumAmt(txs) { return txs.reduce((s, t) => s + t.amount, 0); }
 
+/* Which side of the ledger a category sits on. Decided per CATEGORY, not per
+   transaction, so money coming back into a spending category (a refund, a friend
+   paying you back) nets off that category's spend instead of being counted as
+   income under the same name.
+   Income = Cash tips, a name that is clearly income (Salary, Interest…), or a
+   category whose money in outweighs money out across all history (Vinted Sales).
+   Everything else is spending. Memoised on RAW_TX (re-parsed on every fetch). */
+const INCOME_NAME_RE = /salary|wage|payroll|income|interest|dividend|tronc/i;
+let _catSides = { src:null, len:-1, net:{} };
+function isIncomeCat(name) {
+    if (name === TIP_CAT || INCOME_NAME_RE.test(name)) return true;
+    if (_catSides.src !== RAW_TX || _catSides.len !== RAW_TX.length) {
+        const net = {};
+        for (const t of RAW_TX) {
+            if (excluded(t.category)) continue;
+            const k = canonCat(t.category);
+            net[k] = (net[k] || 0) + t.amount;
+        }
+        _catSides = { src:RAW_TX, len:RAW_TX.length, net };
+    }
+    return (_catSides.net[name] || 0) > 0;
+}
+
 function aggregate(start, end) {
-    let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0;
+    let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0, refundTotal = 0, refundCount = 0;
     const map = {}, imap = {};
     for (const t of RAW_TX.concat(tipTxs())) {
         if (t.date < start || t.date > end) continue;
         if (excluded(t.category)) { excludedTotal += Math.abs(t.amount); excludedCount++; continue; }
         const k = canonCat(t.category);
-        if (t.amount < 0) {
-            totalSpend += -t.amount;
-            (map[k] = map[k] || { name:k, amt:0, tx:0, txs:[] });
-            map[k].amt += -t.amount;
-            map[k].tx++;
-            map[k].txs.push(t);
-        } else {
+        if (isIncomeCat(k)) {
+            // Income category: net of anything paid out of it (e.g. a Vinted purchase).
             totalIncome += t.amount;
             (imap[k] = imap[k] || { name:k, amt:0, tx:0, txs:[] });
             imap[k].amt += t.amount;
             imap[k].tx++;
             imap[k].txs.push(t);
+        } else {
+            // Spending category: money back (refund / paid back) reduces the spend.
+            totalSpend += -t.amount;
+            (map[k] = map[k] || { name:k, amt:0, tx:0, txs:[], refund:0, refundTx:0 });
+            map[k].amt += -t.amount;
+            map[k].tx++;
+            map[k].txs.push(t);
+            if (t.amount > 0) { map[k].refund += t.amount; map[k].refundTx++; refundTotal += t.amount; refundCount++; }
         }
     }
     const catList    = Object.values(map).sort((a,b) => b.amt - a.amt);
     const incomeList = Object.values(imap).sort((a,b) => b.amt - a.amt);
-    return { catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount, start, end };
+    return { catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount, refundTotal, refundCount, start, end };
 }
 
 function buildLine(r, pr) {
@@ -2218,8 +2249,10 @@ function buildLine(r, pr) {
     const spendOn = (txs, day) => txs.filter(t => sameDay(t.date, day)).reduce((s,t) => s - t.amount, 0);
 
     const days = mkDays(r.start, r.end);
-    const curTx  = RAW_TX.filter(t => t.date >= r.start && t.date <= r.end && t.amount < 0 && !excluded(t.category));
-    const prevTx = RAW_TX.filter(t => t.date >= pr.start && t.date <= pr.end && t.amount < 0 && !excluded(t.category));
+    // Spending-side transactions (refunds included, so they pull the line down like they do the totals)
+    const isSpend = t => !excluded(t.category) && !isIncomeCat(canonCat(t.category));
+    const curTx  = RAW_TX.filter(t => t.date >= r.start && t.date <= r.end && isSpend(t));
+    const prevTx = RAW_TX.filter(t => t.date >= pr.start && t.date <= pr.end && isSpend(t));
 
     let c = 0;
     const thisCum = days.map(day => { c += spendOn(curTx, day); return day > now ? null : Math.round(c); });
@@ -2267,10 +2300,12 @@ function buildLiveView() {
     const ts = cur.totalSpend || 1;
     const cats = cur.catList.map((c,i) => {
         const p   = prevMap[c.name] || 0;
-        const pct = p > 0 ? Math.round((c.amt - p)/p * 100) : (c.amt > 0 ? 100 : 0);
+        // Capped at −100%: refunds can net a category below zero, but "down 137%" reads as nonsense.
+        const pct = p > 0 ? Math.max(-100, Math.round((c.amt - p)/p * 100)) : (c.amt > 0 ? 100 : 0);
         return { icon:iconFor(c.name), name:c.name, amt:Math.round(c.amt), tx:c.tx,
                  color:PALETTE[i % PALETTE.length], pct:Math.round(c.amt/ts*100),
-                 prevAmt:Math.round(p), momPct:pct, momGood:pct <= 0 };
+                 prevAmt:Math.round(p), momPct:pct, momGood:pct <= 0,
+                 refund:Math.round(c.refund), refundTx:c.refundTx };
     });
     // income broken down by category (up is good)
     const its = cur.totalIncome || 1;
@@ -2288,6 +2323,7 @@ function buildLiveView() {
         prevSpend:Math.round(prev.totalSpend), prevIncome:Math.round(prev.totalIncome),
         cats, incomeCats, line:buildLine(r, pr), recurring:detectRecurring(), _cur:cur,
         excludedTotal:Math.round(cur.excludedTotal), excludedCount:cur.excludedCount,
+        refundTotal:Math.round(cur.refundTotal), refundCount:cur.refundCount,
     };
 }
 function buildMockView() {
@@ -2298,7 +2334,8 @@ function buildMockView() {
         const m = MOM_MOCK[c.name] || { pct:0, good:true };
         const prevAmt = m.pct !== 0 ? Math.round(c.amt / (1 + m.pct/100)) : c.amt;
         return { icon:c.icon, name:c.name, amt:c.amt, tx:c.tx, color:c.color,
-                 pct:Math.round(c.amt/ts*100), prevAmt, momPct:m.pct, momGood:m.good };
+                 pct:Math.round(c.amt/ts*100), prevAmt, momPct:m.pct, momGood:m.good,
+                 refund:c.refund || 0, refundTx:c.refundTx || 0 };
     });
     // Logged cash tips are real (not mock), so they join the mock income for the period.
     const curTips = tipsIn(r.start, r.end), tipAmt = Math.round(sumAmt(curTips));
@@ -2319,6 +2356,7 @@ function buildMockView() {
         totalSpend:ts, totalIncome:its, prevSpend:1307, prevIncome:1649 + prevTipAmt,
         cats, incomeCats, line:MOCK_LINE, recurring:RECURRING_MOCK,
         excludedTotal:450, excludedCount:3,
+        refundTotal:cats.reduce((s,c) => s + c.refund, 0), refundCount:cats.reduce((s,c) => s + c.refundTx, 0),
     };
 }
 
@@ -2591,6 +2629,8 @@ function renderTips() {
             <button class="icon-btn danger" onclick="deleteTip('${t.tipId}')" title="Delete" aria-label="Delete tip"><img src="${LUCIDE('trash-2')}" alt=""></button>
         </div>`).join('') : '<div class="tips-empty">No cash tips logged this period.</div>';
 }
+// "· £25 refunded" suffix for a spending category that had money come back this period.
+function refundNote(c) { return c && c.refund > 0 ? ` · £${c.refund.toLocaleString()} refunded` : ''; }
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function addTip() {
     const amtEl = document.getElementById('tip-amt'), dateEl = document.getElementById('tip-date'), noteEl = document.getElementById('tip-note');
@@ -2630,6 +2670,21 @@ function setHero(which, cur, prev) {
     badge.className = 'kpi-d ' + (pct === 0 ? 'mut' : isGood ? 'pos' : 'neg');
     badge.textContent = (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct) + '%';
     sub.textContent = `£${prev.toLocaleString()} last period`;
+}
+
+// Under the Income KPI: where this period's income actually came from (from transactions
+// + logged cash tips). Under Spending: how much came back as refunds and was netted off.
+function renderIncomeSources(V) {
+    const src = (V.incomeCats || []).filter(c => c.amt > 0);
+    const shown = src.slice(0, 3).map(c => `<span class="nw">${escHtml(c.name)} <b>£${c.amt.toLocaleString()}</b></span>`);
+    if (src.length > 3) shown.push(`<span class="nw">+${src.length - 3} more</span>`);
+    const srcEl = document.getElementById('hero-income-src');
+    srcEl.innerHTML = shown.length ? shown.join(' · ') : 'No income received yet this period';
+    srcEl.title = src.map(c => `${c.name}: £${c.amt.toLocaleString()}`).join('\n');
+    const n = V.refundCount || 0, t = V.refundTotal || 0;
+    document.getElementById('hero-spend-net').innerHTML = n
+        ? `After <b>£${t.toLocaleString()}</b> back from ${n} refund${n === 1 ? '' : 's'}`
+        : 'No refunds this period';
 }
 
 // Where we are in the selected period (for "day X of Y" and the pace tick).
@@ -2686,6 +2741,7 @@ function renderOverview() {
 
     setHero('income', V.totalIncome, V.prevIncome);
     setHero('spend',  V.totalSpend,  V.prevSpend);
+    renderIncomeSources(V);
     renderOverviewHero(V);
 
     document.getElementById('pc-last-range').textContent = 'Last · ' + V.prevLabel;
@@ -2782,8 +2838,9 @@ function renderDonut() {
         if (tEl) tEl.textContent = 'Income by Category';
         CHART_DONUT = makeDonut('donutChart', 'donut-center', 'legend', activeCats(), activeTotal(), 'total income');
     } else {
-        const fixed    = VIEW.cats.filter(c => classOf(c.name) === 'fixed');
-        const variable = VIEW.cats.filter(c => classOf(c.name) === 'variable');
+        // A refund-only period can leave a category net negative; a donut can't draw that.
+        const fixed    = VIEW.cats.filter(c => c.amt > 0 && classOf(c.name) === 'fixed');
+        const variable = VIEW.cats.filter(c => c.amt > 0 && classOf(c.name) === 'variable');
         const fT = fixed.reduce((s,c)=>s+c.amt,0);
         const vT = variable.reduce((s,c)=>s+c.amt,0);
         CHART_FIXED = makeDonut('donutFixed', 'center-fixed', 'legend-fixed', fixed, fT, 'fixed');
@@ -2797,7 +2854,7 @@ function renderCatGrid(V) {
     document.getElementById('cat-kpi-grid').innerHTML = V.cats.map(c => {
         const b = budgetFlagAllowed() ? BUDGETS[c.name] : null;
         const target = b && b.target > 0 ? b.target : 0;
-        const pct = target ? c.amt / target * 100 : 0;
+        const pct = target ? Math.max(0, c.amt) / target * 100 : 0;   // floor: a refund-only period nets below zero
         const status = budgetPill(c.name, c.amt);
         const bar = target
             ? `<div class="bar"><div class="bar-fill ${pct > 100 ? 'over' : pct >= 85 ? 'near' : ''}" style="width:${Math.min(100, pct)}%"></div>${P.current ? `<div class="bar-pace" style="left:${Math.min(100, P.elapsed * 100)}%"></div>` : ''}</div>
@@ -2809,7 +2866,7 @@ function renderCatGrid(V) {
                 <span class="ico-chip">${iconImg(c.icon)}</span>
                 <div class="lr-txt">
                     <span class="lr-t">${c.name}</span>
-                    <span class="lr-m">${classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable'} · ${c.tx} transaction${c.tx === 1 ? '' : 's'}</span>
+                    <span class="lr-m">${classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable'} · ${c.tx} transaction${c.tx === 1 ? '' : 's'}${refundNote(c)}</span>
                 </div>
             </div>
             <span class="lr-spent">${fmtMoney(c.amt)}</span>
@@ -2853,7 +2910,7 @@ function renderCatRows() {
     const max = Math.max(1, ...cats.map(c => c.amt));
     document.getElementById('cat-rows').innerHTML = cats.map(c => {
         const colour = c.momPct === 0 ? 'mut' : c.momGood ? 'pos' : 'neg';
-        const meta = noun === 'spend' ? (classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable') : `${c.pct}% of ${noun}`;
+        const meta = noun === 'spend' ? (classOf(c.name) === 'fixed' ? 'Fixed' : 'Variable') + refundNote(c) : `${c.pct}% of ${noun}`;
         // Spending: budget status pill (falls back to vs-last when no budget applies). Income: vs last.
         const status = (noun === 'spend' && budgetPill(c.name, c.amt))
             || `<span class="${colour}">${fmtPct(c.momPct, { sign:true })} vs last</span>`;
@@ -2863,7 +2920,7 @@ function renderCatRows() {
                 <span class="cat-name">${c.name}</span>
                 <span class="cat-meta">${c.tx} transaction${c.tx === 1 ? '' : 's'} · ${meta}</span>
             </div>
-            <div class="share-bar"><div style="width:${c.amt / max * 100}%;background:${c.color}"></div></div>
+            <div class="share-bar"><div style="width:${Math.max(0, c.amt) / max * 100}%;background:${c.color}"></div></div>
             <span class="cat-amt">${fmtMoney(c.amt)}</span>
             <span class="cat-pct">${status}</span>
             <img class="cat-arrow" src="${LUCIDE('chevron-right')}" alt="">
@@ -2895,7 +2952,7 @@ function openSubview(name) {
     document.getElementById('sv-icon').innerHTML  = iconImg(d.icon, 20);
     document.getElementById('sv-title').textContent = d.title;
     document.getElementById('sv-total').textContent =
-        `${isInc ? 'Income' : (classOf(name) === 'fixed' ? 'Fixed' : 'Variable')} · ${VIEW.rangeLabel}`;
+        `${isInc ? 'Income' : (classOf(name) === 'fixed' ? 'Fixed' : 'Variable')} · ${VIEW.rangeLabel}${isInc ? '' : refundNote(vc)}`;
 
     // Stat strip: spent vs budget (or this period's total) + three stat cells
     const P = periodProgress();
@@ -2903,7 +2960,7 @@ function openSubview(name) {
     const target = b && b.target > 0 ? b.target : 0;
     let hero;
     if (target) {
-        const pct = d.total / target * 100, left = Math.round(target - d.total);
+        const pct = Math.max(0, d.total) / target * 100, left = Math.round(target - d.total);
         hero = `<span class="eyebrow">Spent vs budget</span>
             <div class="sv-hero-amts"><span class="ov-hero-amt">${fmtMoney(d.total, { size:'hero' })}</span><span class="ov-hero-of">of ${fmtMoney(target, { size:'large' })}</span></div>
             <div class="bar bar-lg"><div class="bar-fill ${pct > 100 ? 'over' : pct >= 85 ? 'near' : ''}" style="width:${Math.min(100, pct)}%"></div>${P.current ? `<div class="bar-pace" style="left:${Math.min(100, P.elapsed * 100)}%"></div>` : ''}</div>
@@ -2936,8 +2993,9 @@ function openSubview(name) {
 
     // Top merchants from this period's transactions
     const byM = {};
-    d.txs.forEach(([amt, merchant]) => { const m = byM[merchant] || (byM[merchant] = { amt:0, n:0 }); m.amt += Math.abs(amt); m.n++; });
-    const merch = Object.entries(byM).sort((a, z) => z[1].amt - a[1].amt).slice(0, 5);
+    // Signed: a refund from a merchant reduces what you spent there (and vice versa for income).
+    d.txs.forEach(([amt, merchant]) => { const m = byM[merchant] || (byM[merchant] = { amt:0, n:0 }); m.amt += isInc ? amt : -amt; m.n++; });
+    const merch = Object.entries(byM).filter(([, x]) => x.amt > 0).sort((a, z) => z[1].amt - a[1].amt).slice(0, 5);
     const mMax = merch.length ? merch[0][1].amt : 1;
     document.getElementById('sv-merch').innerHTML = merch.map(([m, x]) => `<div class="merch-row">
             <div class="merch-top"><span>${m}</span><span>${fmtMoney(x.amt, { decimals:2 })}</span></div>

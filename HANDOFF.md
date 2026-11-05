@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-10-29. Read this first when picking the project back up._
+_Last updated: 2026-11-05. Read this first when picking the project back up._
 
 ---
 
@@ -75,6 +75,8 @@ Connect Google → SheetsAPI.fetchData()
 
 **Cash tips** — Overview side card for logging cash tips by hand (amount, date, optional note; delete per entry). Stored in `Store('cashTips')` as `[{id, date:'YYYY-MM-DD', amt, note}]` and synced (`SYNC_KEYS`). `tipTxs()` turns them into income transactions that `aggregate()` merges with `RAW_TX` under the **Cash tips** category, so they count towards the Income KPI, Categories → Income and drill-downs for whichever period is selected. In mock mode they're added on top of the demo income.
 
+**Refunds & income (2026-11-05)** — `aggregate()` now decides income vs spending **per category, not per transaction** (`isIncomeCat()`). Money coming back into a spending category (a refund, a friend paying you back) **nets off that category's spend** and appears as a green `+£` row in its drill-in transactions, instead of creating a same-named income category. Income = Cash tips, a clearly-income name (`INCOME_NAME_RE`: salary/wage/payroll/income/interest/dividend/tronc), or a category whose all-time money in outweighs money out (e.g. Vinted Sales; purchases net against it). Spending rows show "· £X refunded"; a refund-only period can net a category below zero (kept out of donuts; budget bar floored at 0%, vs-last capped at −100%). Overview KPI strip: **Income received** (real income from transactions + tips) with a sources line (`renderIncomeSources`), and Spending shows "After £X back from N refunds".
+
 **Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (`openSubview`: spent-vs-budget strip + stats, **HTML bar chart** of the last 6 pay periods with dashed average, Top Merchants, transactions table), recurring-payment detection (card grid), and an "Excluded this period" line.
 
 **Income estimator** — one generic **hourly role** on the hospitality **tronc** model: rota hours (default **contracted hrs/week**, 48, × the 4 or 5 weeks in the pay window; type the actual rota to override) × (**base rate**, min. wage £12.71, + **tronc/hr**, currently £2.79, both editable). Tronc is taxed but NI-free when paid via an independent troncmaster (checkbox, on by default); pension applies to base pay only with a **pay-schedule card** (next payday, the hours window it covers, 4 vs 5 weeks, avg hrs/week), PAYE tax, **pension net-pay model** (defaults to 0% — not enrolled), grand total (net + cash) and **monthly "save as target"**. The ONE LDN FOH/DA roles and holiday-pay estimator were removed in Sep 2026 after the job change.
@@ -108,6 +110,7 @@ Connect Google → SheetsAPI.fetchData()
 - **Period chips hidden** on Budget, Wealth, Income and the category drill-in (`.main[data-tab]` + `:has()` CSS) — those views ignore the global period (and a period change closes the drill-in anyway).
 - **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
 - **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
+- **Refunds net against their category (2026-11-05):** side of the ledger is per category (all-time net sign + income-name keywords), so tag refunds/pay-backs to the spending category in Emma and they reduce that category's spend. No manual override yet — if a category is misclassified, the fix would be an `income` value in `CATEGORY_CLASS`.
 - **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 
 ---
