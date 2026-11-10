@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-11-05. Read this first when picking the project back up._
+_Last updated: 2026-11-10. Read this first when picking the project back up._
 
 ---
 
@@ -75,6 +75,8 @@ Connect Google → SheetsAPI.fetchData()
 
 **Cash tips** — Overview side card for logging cash tips by hand (amount, date, optional note; delete per entry). Stored in `Store('cashTips')` as `[{id, date:'YYYY-MM-DD', amt, note}]` and synced (`SYNC_KEYS`). `tipTxs()` turns them into income transactions that `aggregate()` merges with `RAW_TX` under the **Cash tips** category, so they count towards the Income KPI, Categories → Income and drill-downs for whichever period is selected. In mock mode they're added on top of the demo income.
 
+**Cash spending (2026-11-10)** — Overview side card (under Cash tips) for logging cash purchases: amount, date, **spending category** (picker built by `spendCategoryNames()` from the live categories or the demo list, excluding income and cash-withdrawal categories) and optional note. Stored in `Store('cashSpend')` as `[{id, date, amt, category, note}]`, synced (`SYNC_KEYS`) and rehydrated. `cashSpendTxs()` turns them into negative transactions (merchant "Cash · note") that `aggregate()` merges, so they count in the Spending KPI ("Includes £X cash"), the ledger ("· £X cash"), budgets, Categories and drill-downs. In mock mode they're added on top of the demo spending. If the period also has bank **cash withdrawals** (`WITHDRAWAL_RE`: ATM / cash machine / withdraw / a category named "Cash"), the card warns to re-tag them as Transfer in Emma so the same money isn't counted twice — nothing is excluded automatically.
+
 **Refunds & income (2026-11-05)** — `aggregate()` now decides income vs spending **per category, not per transaction** (`isIncomeCat()`). Money coming back into a spending category (a refund, a friend paying you back) **nets off that category's spend** and appears as a green `+£` row in its drill-in transactions, instead of creating a same-named income category. Income = Cash tips, a clearly-income name (`INCOME_NAME_RE`: salary/wage/payroll/income/interest/dividend/tronc), or a category whose all-time money in outweighs money out (e.g. Vinted Sales; purchases net against it). Spending rows show "· £X refunded"; a refund-only period can net a category below zero (kept out of donuts; budget bar floored at 0%, vs-last capped at −100%). Overview KPI strip: **Income received** (real income from transactions + tips) with a sources line (`renderIncomeSources`), and Spending shows "After £X back from N refunds".
 
 **Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (`openSubview`: spent-vs-budget strip + stats, **HTML bar chart** of the last 6 pay periods with dashed average, Top Merchants, transactions table), recurring-payment detection (card grid), and an "Excluded this period" line.
@@ -111,6 +113,7 @@ Connect Google → SheetsAPI.fetchData()
 - **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
 - **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
 - **Refunds net against their category (2026-11-05):** side of the ledger is per category (all-time net sign + income-name keywords), so tag refunds/pay-backs to the spending category in Emma and they reduce that category's spend. No manual override yet — if a category is misclassified, the fix would be an `income` value in `CATEGORY_CLASS`.
+- **Cash spending vs withdrawals (2026-11-10):** logged cash counts as spending in its category; ATM withdrawals are *not* auto-excluded (if you didn't log the cash, that spend would vanish). Instead the card flags them; the fix is re-tagging them `Transfer` in Emma, same as savings withdrawals.
 - **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 
 ---
