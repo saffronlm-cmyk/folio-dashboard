@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-11-10. Read this first when picking the project back up._
+_Last updated: 2026-11-11. Read this first when picking the project back up._
 
 ---
 
@@ -23,6 +23,12 @@ A working, single-file personal finance dashboard (`index.html`) that reads tran
 - **Second gotcha:** signing in without granting the Sheets permission yields a 403 "insufficient scopes" on the live read. Hardened (PR follow-up `claude/sheets-scope-reauth-ic4476`): a scope/401 error now clears the token and re-prompts consent instead of silently retrying.
 
 **✅ DONE 2026-10-29: Hairline visual restyle (PR #19, merge `deeba45`).** Every tab, drill-in and modal restyled to the Hairline design (handoff `~/Downloads/design_handoff_emma_hairline/`, Overview = option **1c**): ink `#171717` sidebar, Geist / Geist Mono, hairline-ring cards, Lucide icons, **no emoji in the UI**. Data, Sheets, Store and calculation logic, function names and JS-used element ids unchanged — renderers just emit new markup. Details: §4 (what each screen looks like now), §6 (decisions), §7 (gotchas), §9.
+
+**✅ DONE 2026-11-05: Refunds net against their category + real income on Overview (PR #22, merge `9343512`).** Refunds / being paid back, tagged to a spending category, now reduce that category's spend and show in its drill-in (they used to be miscounted as income under the same name). Overview KPI is now **Income received** with a sources line; Spending notes refunds netted off. Details: §4, §6.
+
+**✅ DONE 2026-11-11: Cash spending log (PR #23, merge `faa3f3c`).** New Overview card for cash purchases (amount, date, spending category, note), synced via `Store('cashSpend')` and counted as spending everywhere (KPI, ledger, budgets, Categories, drill-ins). Warns when bank cash withdrawals in the same period would double-count. Details: §4, §6.
+
+**Housekeeping:** the remote branches `claude/refunds-and-real-income` and `claude/cash-purchases` are merged but still on GitHub — cloud sessions can't delete remote branches (§7). Delete them from each PR page, or turn on *Settings → General → Automatically delete head branches*.
 
 **Next build:** see §9 *Roadmap remaining* (Savings goals first).
 
@@ -75,9 +81,9 @@ Connect Google → SheetsAPI.fetchData()
 
 **Cash tips** — Overview side card for logging cash tips by hand (amount, date, optional note; delete per entry). Stored in `Store('cashTips')` as `[{id, date:'YYYY-MM-DD', amt, note}]` and synced (`SYNC_KEYS`). `tipTxs()` turns them into income transactions that `aggregate()` merges with `RAW_TX` under the **Cash tips** category, so they count towards the Income KPI, Categories → Income and drill-downs for whichever period is selected. In mock mode they're added on top of the demo income.
 
-**Cash spending (2026-11-10)** — Overview side card (under Cash tips) for logging cash purchases: amount, date, **spending category** (picker built by `spendCategoryNames()` from the live categories or the demo list, excluding income and cash-withdrawal categories) and optional note. Stored in `Store('cashSpend')` as `[{id, date, amt, category, note}]`, synced (`SYNC_KEYS`) and rehydrated. `cashSpendTxs()` turns them into negative transactions (merchant "Cash · note") that `aggregate()` merges, so they count in the Spending KPI ("Includes £X cash"), the ledger ("· £X cash"), budgets, Categories and drill-downs. In mock mode they're added on top of the demo spending. If the period also has bank **cash withdrawals** (`WITHDRAWAL_RE`: ATM / cash machine / withdraw / a category named "Cash"), the card warns to re-tag them as Transfer in Emma so the same money isn't counted twice — nothing is excluded automatically.
+**Cash spending (PR #23, merged 2026-11-11)** — Overview side card (under Cash tips) for logging cash purchases: amount, date, **spending category** (picker built by `spendCategoryNames()` from the live categories or the demo list, excluding income and cash-withdrawal categories) and optional note. Stored in `Store('cashSpend')` as `[{id, date, amt, category, note}]`, synced (`SYNC_KEYS`) and rehydrated. `cashSpendTxs()` turns them into negative transactions (merchant "Cash · note") that `aggregate()` merges, so they count in the Spending KPI ("Includes £X cash"), the ledger ("· £X cash"), budgets, Categories and drill-downs. In mock mode they're added on top of the demo spending. If the period also has bank **cash withdrawals** (`WITHDRAWAL_RE`: ATM / cash machine / withdraw / a category named "Cash"), the card warns to re-tag them as Transfer in Emma so the same money isn't counted twice — nothing is excluded automatically.
 
-**Refunds & income (2026-11-05)** — `aggregate()` now decides income vs spending **per category, not per transaction** (`isIncomeCat()`). Money coming back into a spending category (a refund, a friend paying you back) **nets off that category's spend** and appears as a green `+£` row in its drill-in transactions, instead of creating a same-named income category. Income = Cash tips, a clearly-income name (`INCOME_NAME_RE`: salary/wage/payroll/income/interest/dividend/tronc), or a category whose all-time money in outweighs money out (e.g. Vinted Sales; purchases net against it). Spending rows show "· £X refunded"; a refund-only period can net a category below zero (kept out of donuts; budget bar floored at 0%, vs-last capped at −100%). Overview KPI strip: **Income received** (real income from transactions + tips) with a sources line (`renderIncomeSources`), and Spending shows "After £X back from N refunds".
+**Refunds & income (PR #22, merged 2026-11-05)** — `aggregate()` now decides income vs spending **per category, not per transaction** (`isIncomeCat()`). Money coming back into a spending category (a refund, a friend paying you back) **nets off that category's spend** and appears as a green `+£` row in its drill-in transactions, instead of creating a same-named income category. Income = Cash tips, a clearly-income name (`INCOME_NAME_RE`: salary/wage/payroll/income/interest/dividend/tronc), or a category whose all-time money in outweighs money out (e.g. Vinted Sales; purchases net against it). Spending rows show "· £X refunded"; a refund-only period can net a category below zero (kept out of donuts; budget bar floored at 0%, vs-last capped at −100%). Overview KPI strip: **Income received** (real income from transactions + tips) with a sources line (`renderIncomeSources`), and Spending shows "After £X back from N refunds".
 
 **Categories** — **Spending/Income** toggle. Spending mode shows **two donuts (Fixed + Variable)**; income mode shows one. Category/Merchant sub-toggle, drill-down (`openSubview`: spent-vs-budget strip + stats, **HTML bar chart** of the last 6 pay periods with dashed average, Top Merchants, transactions table), recurring-payment detection (card grid), and an "Excluded this period" line.
 
@@ -113,7 +119,7 @@ Connect Google → SheetsAPI.fetchData()
 - **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
 - **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
 - **Refunds net against their category (2026-11-05):** side of the ledger is per category (all-time net sign + income-name keywords), so tag refunds/pay-backs to the spending category in Emma and they reduce that category's spend. No manual override yet — if a category is misclassified, the fix would be an `income` value in `CATEGORY_CLASS`.
-- **Cash spending vs withdrawals (2026-11-10):** logged cash counts as spending in its category; ATM withdrawals are *not* auto-excluded (if you didn't log the cash, that spend would vanish). Instead the card flags them; the fix is re-tagging them `Transfer` in Emma, same as savings withdrawals.
+- **Cash spending vs withdrawals (2026-11-11):** logged cash counts as spending in its category; ATM withdrawals are *not* auto-excluded (if you didn't log the cash, that spend would vanish). Instead the card flags them; the fix is re-tagging them `Transfer` in Emma, same as savings withdrawals.
 - **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 
 ---
@@ -130,6 +136,8 @@ Connect Google → SheetsAPI.fetchData()
 - **`openModal()` titles via `querySelector('.modal-title')`** — the Add Account modal's title must stay the **first** `.modal-title` in the DOM.
 - **Empty donuts:** with no data Chart.js never draws, leaving the canvas at its 300px default — capped by `.donut-wrap canvas { max-width:100% }` (otherwise mobile scrolls sideways).
 - **Holding currency `GBp`** (e.g. VUAG) isn't an option in the Edit Holding Currency select (GBP/USD/EUR only) → shows blank. Pre-existing, unfixed.
+- **Categories "Category / Merchant" sub-toggle is cosmetic** — `setToggle('merchant')` only flips the button; the list is always by category. Wire it up or remove it.
+- **Cloud (claude.ai/code) sessions:** jsDelivr and unpkg are blocked by the network policy, so Chart.js / treemap / Lucide don't load in headless verification (`Chart is not defined`). Workaround that needs no network change: `npm pack chart.js@4.4.0 chartjs-chart-treemap@3.1.0 lucide-static@0.460.0` (the npm registry is reachable) and serve those files via Playwright `page.route()` for the CDN URLs. Cloud sessions also **can't delete remote branches** (`git push --delete` is cut off) — delete merged branches from the PR page.
 - **Headless verification:** the treemap's final animation frame doesn't paint in headless Chrome (pre-existing; a forced `draw()` shows it fine). If it's ever blank in real Chrome, set `animation:false` on that chart.
 
 ---
@@ -199,6 +207,13 @@ Cross-tab rules engine (`buildInsights()` → `{id,priority,tone,icon,text,domai
 ### ✅ Done — Hairline visual restyle
 
 Merged (PR #19, 2026-10-29). Restyled shell + Overview (1c) → Categories → Budget → Wealth → Income → drill-ins → modals to the handoff in `~/Downloads/design_handoff_emma_hairline/` (`README.md`, `DECISIONS.md`, `design/*.dc.html`). New display helpers: `fmtMoney/fmtPct/fmtNum/fmtMono`, `iconImg`/`LUCIDE`, `periodProgress`, `renderOverviewHero`, `budgetPill`, `accountColors`; `kpiCard()` gained an optional `pct`. Verified in headless Chrome at 1280px + 390px across all tabs, drill-ins and modals (no JS errors, no horizontal overflow, no emoji). Optional follow-ups: pence in Income; a `GBp` currency option (§7).
+
+### ✅ Done — Refunds, real income & cash spending (Nov 2026)
+
+- **PR #22 (2026-11-05):** per-category income/spend side (`isIncomeCat()`, memoised on `RAW_TX`); refunds net off spend, show as `+£` rows and "· £X refunded"; Overview **Income received** + sources (`renderIncomeSources`), Spending "After £X back from N refunds".
+- **PR #23 (2026-11-11):** **Cash spending** card (`renderCashSpend` / `addCashSpend` / `deleteCashSpend`, `Store('cashSpend')` in `SYNC_KEYS` + `rehydrateFromStore`); `cashSpendTxs()` merged in `aggregate()` and the (hidden) line chart; mock parity in `buildMockView` + `catDetail`; withdrawal warning via `withdrawalsIn()` / `WITHDRAWAL_RE`. Spending KPI reads "Includes £X cash · after £Y back from N refunds".
+- Both verified in headless Chrome (mock + synthetic live datasets, 1400px + 390px, all tabs, no page errors). **Not yet seen against real Emma data** — first live check worth doing: any ATM withdrawals still tagged as spending (the cash card will flag them), and whether any category lands on the wrong income/spend side.
+- **Possible follow-ups:** a manual income/spend override per category (an `income` value in `CATEGORY_CLASS`); edit-in-place for cash entries (currently delete + re-add); a "cash on hand" view (withdrawals + tips in vs logged spend out).
 
 ### Roadmap remaining (agreed order)
 1. **Savings goals** — named goal + target + date, progress from a chosen account; on-brand with the holiday-pay theme.
