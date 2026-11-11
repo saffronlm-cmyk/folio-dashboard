@@ -353,6 +353,10 @@
         .tip-note { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tip-row .icon-btn { width: 28px; height: 28px; }
         .tips-empty { font-size: 13px; color: var(--muted); padding-top: 4px; }
+        .tips-total.spend { color: var(--text); }
+        .cash-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .cash-row2 .fi, .cash-row2 .fs { height: 36px; }
+        .cash-warn { font-size: 12px; line-height: 18px; color: var(--text-2); padding: 8px 10px; border-radius: 8px; background: var(--bg); box-shadow: inset 2px 0 0 var(--warning); }
 
         /* ─── DONUTS (shared: Categories + Wealth) ── */
         .donut-card { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -1171,6 +1175,21 @@
                 <input class="fi" type="text" id="tip-note" maxlength="60" placeholder="Note (optional), e.g. Sat dinner shift" aria-label="Note" onkeydown="if(event.key==='Enter')addTip()">
                 <div class="tips-list" id="tips-list"></div>
             </div>
+            <div class="side-card" id="cash-card">
+                <div class="tips-head"><span class="eyebrow">Cash spending</span><span class="tips-total spend" id="cash-total">—</span></div>
+                <span class="tips-sub" id="cash-sub">—</span>
+                <div class="tips-form">
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="fi" type="number" id="cash-amt" min="0" step="0.01" placeholder="0.00" inputmode="decimal" aria-label="Amount spent in cash" onkeydown="if(event.key==='Enter')addCashSpend()"></div>
+                    <input class="fi" type="date" id="cash-date" aria-label="Date spent">
+                    <button class="btn-p" onclick="addCashSpend()">Add</button>
+                </div>
+                <div class="cash-row2">
+                    <select class="fs" id="cash-cat" aria-label="Category"></select>
+                    <input class="fi" type="text" id="cash-note" maxlength="60" placeholder="Note (optional)" aria-label="Note" onkeydown="if(event.key==='Enter')addCashSpend()">
+                </div>
+                <div class="cash-warn" id="cash-warn" hidden></div>
+                <div class="tips-list" id="cash-list"></div>
+            </div>
             <div class="side-card">
                 <span class="eyebrow">Period Comparison</span>
                 <div class="pc-row"><span id="pc-last-range">—</span><span id="pc-last-amt">—</span></div>
@@ -1691,7 +1710,7 @@ const Store = {
     PREFIX: 'emmaDash:',
     // App-owned keys that sync cross-device via Supabase. Transient/device-local
     // keys (priceCache, googleToken) are deliberately excluded.
-    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips'],
+    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips', 'cashSpend'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
@@ -1897,6 +1916,7 @@ const DEFAULT_ACCOUNTS = [
 let ACCOUNTS = Store.get('accounts', clone(DEFAULT_ACCOUNTS));
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
 let CASH_TIPS = Store.get('cashTips', []);            // [{id, date:'YYYY-MM-DD', amt, note}]
+let CASH_SPEND = Store.get('cashSpend', []);          // [{id, date:'YYYY-MM-DD', amt, category, note}]
 
 /* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
    Seeded with Saffron's real symbols (live-wired) but PLACEHOLDER units/cost —
@@ -2185,9 +2205,27 @@ const TIP_CAT = 'Cash tips';
 function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function parseDayKey(k) { const [y, m, d] = String(k).split('-').map(Number); return new Date(y, m - 1, d); }
 function tipTxs() {
-    return CASH_TIPS.map(t => ({ date:parseDayKey(t.date), amount:+t.amt || 0, category:TIP_CAT, merchant:t.note || TIP_CAT, tipId:t.id }));
+    return CASH_TIPS.map(t => ({ date:parseDayKey(t.date), amount:+t.amt || 0, category:TIP_CAT, merchant:t.note || TIP_CAT, tipId:t.id, manual:true }));
 }
 function tipsIn(start, end) { return tipTxs().filter(t => t.date >= start && t.date <= end); }
+
+/* Cash purchases — logged by hand on the Overview against a spending category.
+   Merged into aggregate() as spending in that category, so they count towards
+   the Spending KPI, the ledger, budgets, Categories and drill-downs. */
+function cashSpendTxs() {
+    return CASH_SPEND.map(t => ({ date:parseDayKey(t.date), amount:-(+t.amt || 0), category:t.category,
+                                  merchant:t.note ? `Cash · ${t.note}` : 'Cash', cashId:t.id, manual:true }));
+}
+function cashSpendIn(start, end, cat) {
+    return cashSpendTxs().filter(t => t.date >= start && t.date <= end && (!cat || canonCat(t.category) === cat));
+}
+/* Bank-feed cash machine withdrawals still sitting in spending. If cash bought with them
+   is also logged here, the same money counts twice; re-tagging them as Transfer in Emma fixes it. */
+const WITHDRAWAL_RE = /\batm\b|cash ?machine|withdraw|^cash$/i;
+function withdrawalsIn(start, end) {
+    return RAW_TX.filter(t => t.amount < 0 && t.date >= start && t.date <= end && !excluded(t.category)
+                           && (WITHDRAWAL_RE.test(String(t.category || '').trim()) || WITHDRAWAL_RE.test(String(t.merchant || '').trim())));
+}
 function sumAmt(txs) { return txs.reduce((s, t) => s + t.amount, 0); }
 
 /* Which side of the ledger a category sits on. Decided per CATEGORY, not per
@@ -2214,9 +2252,9 @@ function isIncomeCat(name) {
 }
 
 function aggregate(start, end) {
-    let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0, refundTotal = 0, refundCount = 0;
+    let totalSpend = 0, totalIncome = 0, excludedTotal = 0, excludedCount = 0, refundTotal = 0, refundCount = 0, cashTotal = 0, cashCount = 0;
     const map = {}, imap = {};
-    for (const t of RAW_TX.concat(tipTxs())) {
+    for (const t of RAW_TX.concat(tipTxs(), cashSpendTxs())) {
         if (t.date < start || t.date > end) continue;
         if (excluded(t.category)) { excludedTotal += Math.abs(t.amount); excludedCount++; continue; }
         const k = canonCat(t.category);
@@ -2230,16 +2268,17 @@ function aggregate(start, end) {
         } else {
             // Spending category: money back (refund / paid back) reduces the spend.
             totalSpend += -t.amount;
-            (map[k] = map[k] || { name:k, amt:0, tx:0, txs:[], refund:0, refundTx:0 });
+            (map[k] = map[k] || { name:k, amt:0, tx:0, txs:[], refund:0, refundTx:0, cash:0 });
             map[k].amt += -t.amount;
             map[k].tx++;
             map[k].txs.push(t);
             if (t.amount > 0) { map[k].refund += t.amount; map[k].refundTx++; refundTotal += t.amount; refundCount++; }
+            if (t.cashId) { map[k].cash += -t.amount; cashTotal += -t.amount; cashCount++; }
         }
     }
     const catList    = Object.values(map).sort((a,b) => b.amt - a.amt);
     const incomeList = Object.values(imap).sort((a,b) => b.amt - a.amt);
-    return { catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount, refundTotal, refundCount, start, end };
+    return { catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount, refundTotal, refundCount, cashTotal, cashCount, start, end };
 }
 
 function buildLine(r, pr) {
@@ -2251,8 +2290,9 @@ function buildLine(r, pr) {
     const days = mkDays(r.start, r.end);
     // Spending-side transactions (refunds included, so they pull the line down like they do the totals)
     const isSpend = t => !excluded(t.category) && !isIncomeCat(canonCat(t.category));
-    const curTx  = RAW_TX.filter(t => t.date >= r.start && t.date <= r.end && isSpend(t));
-    const prevTx = RAW_TX.filter(t => t.date >= pr.start && t.date <= pr.end && isSpend(t));
+    const all    = RAW_TX.concat(cashSpendTxs());
+    const curTx  = all.filter(t => t.date >= r.start && t.date <= r.end && isSpend(t));
+    const prevTx = all.filter(t => t.date >= pr.start && t.date <= pr.end && isSpend(t));
 
     let c = 0;
     const thisCum = days.map(day => { c += spendOn(curTx, day); return day > now ? null : Math.round(c); });
@@ -2305,7 +2345,7 @@ function buildLiveView() {
         return { icon:iconFor(c.name), name:c.name, amt:Math.round(c.amt), tx:c.tx,
                  color:PALETTE[i % PALETTE.length], pct:Math.round(c.amt/ts*100),
                  prevAmt:Math.round(p), momPct:pct, momGood:pct <= 0,
-                 refund:Math.round(c.refund), refundTx:c.refundTx };
+                 refund:Math.round(c.refund), refundTx:c.refundTx, cash:Math.round(c.cash) };
     });
     // income broken down by category (up is good)
     const its = cur.totalIncome || 1;
@@ -2324,18 +2364,30 @@ function buildLiveView() {
         cats, incomeCats, line:buildLine(r, pr), recurring:detectRecurring(), _cur:cur,
         excludedTotal:Math.round(cur.excludedTotal), excludedCount:cur.excludedCount,
         refundTotal:Math.round(cur.refundTotal), refundCount:cur.refundCount,
+        cashTotal:Math.round(cur.cashTotal), cashCount:cur.cashCount,
     };
 }
 function buildMockView() {
     const r  = rangeFor(CUR);
     const pr = prevRangeFor(CUR);
-    const ts = CATS_MOCK.reduce((s,c) => s+c.amt, 0);
-    const cats = CATS_MOCK.map(c => {
-        const m = MOM_MOCK[c.name] || { pct:0, good:true };
-        const prevAmt = m.pct !== 0 ? Math.round(c.amt / (1 + m.pct/100)) : c.amt;
+    // Logged cash purchases are real (not mock), so they join the mock spending for the period.
+    const curCash = cashSpendIn(r.start, r.end), prevCash = Math.round(-sumAmt(cashSpendIn(pr.start, pr.end)));
+    const cashBy = {};
+    curCash.forEach(t => { const k = canonCat(t.category); (cashBy[k] = cashBy[k] || { amt:0, n:0 }); cashBy[k].amt += -t.amount; cashBy[k].n++; });
+    const spendSrc = CATS_MOCK.map(c => ({ ...c }));
+    Object.keys(cashBy).forEach(k => { if (!spendSrc.some(c => c.name === k))
+        spendSrc.push({ icon:iconFor(k), name:k, amt:0, tx:0, color:PALETTE[spendSrc.length % PALETTE.length], cashOnly:true }); });
+    spendSrc.forEach(c => { const x = cashBy[c.name]; c.cash = x ? Math.round(x.amt) : 0; c.amt += c.cash; c.tx += x ? x.n : 0; });
+    spendSrc.sort((a, b) => b.amt - a.amt);
+    const ts = spendSrc.reduce((s,c) => s+c.amt, 0);
+    const cats = spendSrc.map(c => {
+        const m = c.cashOnly ? { pct:100, good:false } : MOM_MOCK[c.name] || { pct:0, good:true };
+        const base = c.amt - c.cash;   // the demo figure the mock vs-last % applies to
+        const prevAmt = c.cashOnly ? 0 : m.pct !== 0 ? Math.round(base / (1 + m.pct/100)) : base;
+        const momPct = prevAmt > 0 ? Math.round((c.amt - prevAmt) / prevAmt * 100) : m.pct;
         return { icon:c.icon, name:c.name, amt:c.amt, tx:c.tx, color:c.color,
-                 pct:Math.round(c.amt/ts*100), prevAmt, momPct:m.pct, momGood:m.good,
-                 refund:c.refund || 0, refundTx:c.refundTx || 0 };
+                 pct:Math.round(c.amt/ts*100), prevAmt, momPct, momGood:momPct <= 0,
+                 refund:c.refund || 0, refundTx:c.refundTx || 0, cash:c.cash };
     });
     // Logged cash tips are real (not mock), so they join the mock income for the period.
     const curTips = tipsIn(r.start, r.end), tipAmt = Math.round(sumAmt(curTips));
@@ -2353,10 +2405,11 @@ function buildMockView() {
     });
     return {
         rangeLabel:r.label, prevLabel:pr.label, partial:r.partial,
-        totalSpend:ts, totalIncome:its, prevSpend:1307, prevIncome:1649 + prevTipAmt,
+        totalSpend:ts, totalIncome:its, prevSpend:1307 + prevCash, prevIncome:1649 + prevTipAmt,
         cats, incomeCats, line:MOCK_LINE, recurring:RECURRING_MOCK,
         excludedTotal:450, excludedCount:3,
         refundTotal:cats.reduce((s,c) => s + c.refund, 0), refundCount:cats.reduce((s,c) => s + c.refundTx, 0),
+        cashTotal:Math.round(-sumAmt(curCash)), cashCount:curCash.length,
     };
 }
 
@@ -2378,10 +2431,15 @@ function catDetail(name) {
         const list = isInc ? INCOME_MOCK : CATS_MOCK;
         const hist = isInc ? INCOME_HIST_MOCK : HIST_MOCK;
         const txm  = isInc ? INCOME_TX_MOCK  : MOCK_TX_DATA;
-        const c = list.find(x => x.name === name) || { icon:'💳', amt:0, tx:0 };
-        const vals = hist[name] || [];
+        const c = list.find(x => x.name === name) || { icon:iconFor(name), amt:0, tx:0 };
+        const r = rangeFor(CUR);
+        const cash = isInc ? [] : cashSpendIn(r.start, r.end, name).sort((a, b) => b.date - a.date);
+        const cashAmt = Math.round(-sumAmt(cash));
+        const vals = (hist[name] || hist.labels.map(() => 0)).slice();
+        if (cashAmt) vals[vals.length - 1] += cashAmt;
         const avg = vals.length > 1 ? vals.slice(0,-1).reduce((a,b)=>a+b,0)/(vals.length-1) : 0;
-        return { icon:c.icon, title:name, total:c.amt, tx:c.tx, histLabels:hist.labels, histVals:vals, histAvg:avg, txs:txm[name] || [] };
+        const txs = cash.map(t => [t.amount, escHtml(t.merchant), fmtDay(t.date)]).concat(txm[name] || []);
+        return { icon:c.icon, title:name, total:c.amt + cashAmt, tx:c.tx + cash.length, histLabels:hist.labels, histVals:vals, histAvg:avg, txs };
     }
     const base = CUR.mode === 'pay' ? (CUR.offset || 0) : 0;
     const labels = [], vals = [];
@@ -2395,7 +2453,7 @@ function catDetail(name) {
     const avg = vals.slice(0,-1).reduce((a,b)=>a+b,0) / 5;
     const curList = isInc ? VIEW._cur.incomeList : VIEW._cur.catList;
     const c = (curList.find(x => x.name === name)) || { amt:0, tx:0, txs:[] };
-    const txs = c.txs.slice().sort((a,b) => b.date - a.date).map(t => [t.amount, t.tipId ? escHtml(t.merchant) : (t.merchant || t.category), fmtDay(t.date)]);
+    const txs = c.txs.slice().sort((a,b) => b.date - a.date).map(t => [t.amount, t.manual ? escHtml(t.merchant) : (t.merchant || t.category), fmtDay(t.date)]);
     return { icon:iconFor(name), title:name, total:Math.round(c.amt), tx:c.tx, histLabels:labels, histVals:vals, histAvg:avg, txs };
 }
 
@@ -2571,6 +2629,7 @@ function computeAndRender() {
     document.getElementById('period-display').textContent = VIEW.rangeLabel;
     renderOverview();
     renderTips();
+    renderCashSpend();
     renderCatRows();
     renderRecurring();
     renderExcluded();
@@ -2630,7 +2689,72 @@ function renderTips() {
         </div>`).join('') : '<div class="tips-empty">No cash tips logged this period.</div>';
 }
 // "· £25 refunded" suffix for a spending category that had money come back this period.
-function refundNote(c) { return c && c.refund > 0 ? ` · £${c.refund.toLocaleString()} refunded` : ''; }
+function refundNote(c) {
+    if (!c) return '';
+    return (c.cash > 0 ? ` · £${c.cash.toLocaleString()} cash` : '') + (c.refund > 0 ? ` · £${c.refund.toLocaleString()} refunded` : '');
+}
+// Spending categories to log cash against: what the data already uses (live) or the
+// demo list (mock), plus any category used for cash before. Income and cash-withdrawal categories are left out.
+function spendCategoryNames() {
+    const names = new Set(CONNECTED
+        ? RAW_TX.filter(t => !excluded(t.category)).map(t => canonCat(t.category)).filter(n => !isIncomeCat(n) && !WITHDRAWAL_RE.test(n))
+        : CATS_MOCK.map(c => c.name));
+    CASH_SPEND.forEach(t => names.add(canonCat(t.category)));
+    return [...names].sort((a, b) => a.localeCompare(b));
+}
+function renderCashSpend() {
+    const el = id => document.getElementById(id);
+    if (!el('cash-card')) return;
+    const r = rangeFor(CUR), pr = prevRangeFor(CUR);
+    const txs = cashSpendIn(r.start, r.end).sort((a, b) => b.date - a.date || String(b.cashId).localeCompare(String(a.cashId)));
+    const total = -sumAmt(txs) || 0, prev = -sumAmt(cashSpendIn(pr.start, pr.end)) || 0;   // || 0: no '£-0'
+    const dec = v => (Math.round(v * 100) % 100 ? 2 : 0);
+    el('cash-total').innerHTML = fmtMoney(total, { decimals:dec(total) });
+    const n = txs.length;
+    el('cash-sub').textContent = `${n} ${n === 1 ? 'entry' : 'entries'} this period · £${prev.toLocaleString('en-GB', { maximumFractionDigits:2 })} last period`;
+    const date = el('cash-date');
+    date.max = dayKey(new Date());
+    if (!date.value) date.value = dayKey(new Date());
+    // Category picker: keep the current choice across re-renders; default to the last category used.
+    const sel = el('cash-cat'), keep = sel.value || (CASH_SPEND.length ? canonCat(CASH_SPEND[CASH_SPEND.length - 1].category) : '');
+    const cats = spendCategoryNames();
+    sel.innerHTML = '<option value="" disabled>Category</option>'
+        + cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    sel.value = cats.includes(keep) ? keep : '';
+    // Bank cash withdrawals in the same period would double-count cash logged here.
+    const w = n && CONNECTED ? withdrawalsIn(r.start, r.end) : [];
+    const wT = Math.round(-sumAmt(w));
+    el('cash-warn').hidden = !w.length;
+    if (w.length) el('cash-warn').textContent = `£${wT.toLocaleString()} of cash withdrawals this period also count as spending. Tag ${w.length === 1 ? 'it' : 'them'} as Transfer in Emma so this cash isn't counted twice.`;
+    el('cash-list').innerHTML = n ? txs.map(t => {
+        const note = t.merchant === 'Cash' ? '' : t.merchant.replace(/^Cash · /, '');
+        return `<div class="tip-row">
+            <span class="tip-day">${fmtDay(t.date)}</span>
+            <span class="tip-note">${escHtml(canonCat(t.category))}${note ? ` · ${escHtml(note)}` : ''}</span>
+            <span>${fmtMoney(-t.amount, { decimals:dec(-t.amount) })}</span>
+            <button class="icon-btn danger" onclick="deleteCashSpend('${t.cashId}')" title="Delete" aria-label="Delete cash purchase"><img src="${LUCIDE('trash-2')}" alt=""></button>
+        </div>`; }).join('') : '<div class="tips-empty">No cash spending logged this period.</div>';
+}
+function addCashSpend() {
+    const amtEl = document.getElementById('cash-amt'), dateEl = document.getElementById('cash-date'),
+          catEl = document.getElementById('cash-cat'), noteEl = document.getElementById('cash-note');
+    const amt = Math.round(parseFloat(amtEl.value) * 100) / 100;
+    if (!(amt > 0)) { amtEl.focus(); return; }
+    if (!catEl.value) { catEl.focus(); return; }
+    CASH_SPEND.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                      date:dateEl.value || dayKey(new Date()), amt, category:catEl.value, note:noteEl.value.trim() });
+    Store.set('cashSpend', CASH_SPEND);
+    amtEl.value = ''; noteEl.value = '';
+    computeAndRender();
+    amtEl.focus();
+}
+function deleteCashSpend(id) {
+    const t = CASH_SPEND.find(x => x.id === id);
+    if (!t || !confirm(`Delete £${t.amt} cash spend (${t.category}) from ${fmtDay(parseDayKey(t.date))}?`)) return;
+    CASH_SPEND = CASH_SPEND.filter(x => x.id !== id);
+    Store.set('cashSpend', CASH_SPEND);
+    computeAndRender();
+}
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function addTip() {
     const amtEl = document.getElementById('tip-amt'), dateEl = document.getElementById('tip-date'), noteEl = document.getElementById('tip-note');
@@ -2673,7 +2797,7 @@ function setHero(which, cur, prev) {
 }
 
 // Under the Income KPI: where this period's income actually came from (from transactions
-// + logged cash tips). Under Spending: how much came back as refunds and was netted off.
+// + logged cash tips). Under Spending: logged cash included, and refunds netted off.
 function renderIncomeSources(V) {
     const src = (V.incomeCats || []).filter(c => c.amt > 0);
     const shown = src.slice(0, 3).map(c => `<span class="nw">${escHtml(c.name)} <b>£${c.amt.toLocaleString()}</b></span>`);
@@ -2681,10 +2805,11 @@ function renderIncomeSources(V) {
     const srcEl = document.getElementById('hero-income-src');
     srcEl.innerHTML = shown.length ? shown.join(' · ') : 'No income received yet this period';
     srcEl.title = src.map(c => `${c.name}: £${c.amt.toLocaleString()}`).join('\n');
-    const n = V.refundCount || 0, t = V.refundTotal || 0;
-    document.getElementById('hero-spend-net').innerHTML = n
-        ? `After <b>£${t.toLocaleString()}</b> back from ${n} refund${n === 1 ? '' : 's'}`
-        : 'No refunds this period';
+    const n = V.refundCount || 0, t = V.refundTotal || 0, cash = V.cashTotal || 0;
+    const parts = [];
+    if (cash > 0) parts.push(`Includes <b>£${cash.toLocaleString()}</b> cash`);
+    if (n) parts.push(`${parts.length ? 'after' : 'After'} <b>£${t.toLocaleString()}</b> back from ${n} refund${n === 1 ? '' : 's'}`);
+    document.getElementById('hero-spend-net').innerHTML = parts.join(' · ') || 'No refunds this period';
 }
 
 // Where we are in the selected period (for "day X of Y" and the pace tick).
@@ -4108,6 +4233,7 @@ function rehydrateFromStore() {
     HOLDINGS       = Store.get('holdings', clone(DEFAULT_HOLDINGS));
     CATEGORY_CLASS = Store.get('categoryClass', {});
     CASH_TIPS      = Store.get('cashTips', []);
+    CASH_SPEND     = Store.get('cashSpend', []);
     loadIncomeInputs();   // restore synced income-estimator edits
     recalc();
     computeAndRender();
