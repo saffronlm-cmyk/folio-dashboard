@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-11-11. Read this first when picking the project back up._
+_Last updated: 2026-11-23. Read this first when picking the project back up._
 
 ---
 
@@ -79,7 +79,7 @@ Connect Google → SheetsAPI.fetchData()
 
 **Overview (Hairline 1c)** — hero card: **spent vs total budget** (`renderOverviewHero`) with a progress bar (ink <85%, amber 85–100%, red over) + blue **pace tick** at % of period elapsed, "£X left · £Y/day safe to spend · pace" line; right-hand **mesh panel** shows **Est. income next period** (↑/↓ % vs last period). Below: Income · Spending KPI strip; **category ledger** (`renderCatGrid` → rows with budget bar + pace tick, "% of £budget", vs-last %, status pill); Insights card (tone dots); Period comparison. The spend-over-time line chart still renders but is **hidden** (`#lineChart` kept so `renderLine()` works) — deliberately excluded from 1c.
 
-**Cash tips** — Overview side card for logging cash tips by hand (amount, date, optional note; delete per entry). Stored in `Store('cashTips')` as `[{id, date:'YYYY-MM-DD', amt, note}]` and synced (`SYNC_KEYS`). `tipTxs()` turns them into income transactions that `aggregate()` merges with `RAW_TX` under the **Cash tips** category, so they count towards the Income KPI, Categories → Income and drill-downs for whichever period is selected. In mock mode they're added on top of the demo income.
+**Cash tips** — Overview side card for logging cash tips by hand (amount, date, optional note; delete per entry). Stored in `Store('cashTips')` as `[{id, date:'YYYY-MM-DD', amt, note}]` and synced (`SYNC_KEYS`). `tipTxs()` turns them into income transactions that `aggregate()` merges with `RAW_TX` under the **Cash tips** category, so they count towards the Income KPI, Categories → Income and drill-downs for whichever period is selected. In mock mode they're added on top of the demo income. They also feed the **next-period estimate**: the Income tab's *Cash tips* line (`c-tips`) left blank = auto via `tipsEstimate()` (average of logged tips over the last ≤3 completed pay periods since the first tip; before any has completed, this period's tips so far); a typed figure overrides it. `addTip()`/`deleteTip()` call `recalc()` so the Overview's Est. income updates at once.
 
 **Cash spending (PR #23, merged 2026-11-11)** — Overview side card (under Cash tips) for logging cash purchases: amount, date, **spending category** (picker built by `spendCategoryNames()` from the live categories or the demo list, excluding income and cash-withdrawal categories) and optional note. Stored in `Store('cashSpend')` as `[{id, date, amt, category, note}]`, synced (`SYNC_KEYS`) and rehydrated. `cashSpendTxs()` turns them into negative transactions (merchant "Cash · note") that `aggregate()` merges, so they count in the Spending KPI ("Includes £X cash"), the ledger ("· £X cash"), budgets, Categories and drill-downs. In mock mode they're added on top of the demo spending. If the period also has bank **cash withdrawals** (`WITHDRAWAL_RE`: ATM / cash machine / withdraw / a category named "Cash"), the card warns to re-tag them as Transfer in Emma so the same money isn't counted twice — nothing is excluded automatically.
 
@@ -119,6 +119,7 @@ Connect Google → SheetsAPI.fetchData()
 - **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
 - **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
 - **Refunds net against their category (2026-11-05):** side of the ledger is per category (all-time net sign + income-name keywords), so tag refunds/pay-backs to the spending category in Emma and they reduce that category's spend. No manual override yet — if a category is misclassified, the fix would be an `income` value in `CATEGORY_CLASS`.
+- **Cash tips in the estimate (2026-11-23):** Est. income (and so safe-to-spend, "on track to save" and Budget's left-to-budget) now includes cash tips, so the hero's "vs last period" compares like with like (last period's actual already included tips). Auto = recent average, not a fixed guess; blank input means auto, saved as `''` in `incomeInputs` (older saves without `c-tips` → auto).
 - **Cash spending vs withdrawals (2026-11-11):** logged cash counts as spending in its category; ATM withdrawals are *not* auto-excluded (if you didn't log the cash, that spend would vanish). Instead the card flags them; the fix is re-tagging them `Transfer` in Emma, same as savings withdrawals.
 - **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 

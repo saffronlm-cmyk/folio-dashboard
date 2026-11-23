@@ -791,6 +791,7 @@
         .cash-rows { display: flex; flex-direction: column; gap: 10px; }
         .cash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; }
         .cash-lbl { color: var(--text-2); }
+        .cash-lbl .note { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }   /* e.g. tips "auto · avg of last 3 pay periods" */
         .cash-row .pfx { width: 110px; flex-shrink: 0; }
         .cash-inp {
             width: 100%; height: 32px; padding: 0 10px 0 24px; border: none; border-radius: 6px; box-shadow: var(--ring);
@@ -1479,6 +1480,10 @@
                 <div class="cash-row">
                     <label class="cash-lbl" for="c-vinted">Vinted sales</label>
                     <div class="pfx"><span class="pfx-sym">£</span><input class="cash-inp" type="number" id="c-vinted" value="45" oninput="recalc()"></div>
+                </div>
+                <div class="cash-row">
+                    <label class="cash-lbl" for="c-tips">Cash tips <span class="note" id="c-tips-note">auto</span></label>
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="cash-inp" type="number" id="c-tips" min="0" placeholder="0" oninput="recalc()" title="Leave blank to use your logged cash tips"></div>
                 </div>
                 <div class="cash-row">
                     <label class="cash-lbl" for="c-events">Events / one-off cash</label>
@@ -2208,6 +2213,23 @@ function tipTxs() {
     return CASH_TIPS.map(t => ({ date:parseDayKey(t.date), amount:+t.amt || 0, category:TIP_CAT, merchant:t.note || TIP_CAT, tipId:t.id, manual:true }));
 }
 function tipsIn(start, end) { return tipTxs().filter(t => t.date >= start && t.date <= end); }
+/* Cash tips for the next-period income estimate: the average of the logged tips over the
+   last (up to) 3 completed pay periods since you started logging; before any period has
+   completed, this period's tips so far. */
+function tipsEstimate() {
+    if (!CASH_TIPS.length) return { amt:0, label:'none logged yet' };
+    const first = parseDayKey(CASH_TIPS.reduce((m, t) => t.date < m ? t.date : m, CASH_TIPS[0].date));
+    const vals = [];
+    for (let i = 1; i <= 3; i++) {
+        const p = payPeriod(i);
+        if (p.end < first) break;
+        vals.push(sumAmt(tipsIn(p.start, p.end)));
+    }
+    if (vals.length) return { amt:vals.reduce((a, b) => a + b, 0) / vals.length,
+                              label:`avg of last ${vals.length === 1 ? 'pay period' : vals.length + ' pay periods'}` };
+    const p = payPeriod(0);
+    return { amt:sumAmt(tipsIn(p.start, p.end)), label:'this period so far' };
+}
 
 /* Cash purchases — logged by hand on the Overview against a spending category.
    Merged into aggregate() as spending in that category, so they count towards
@@ -2764,6 +2786,7 @@ function addTip() {
                      date:dateEl.value || dayKey(new Date()), amt, note:noteEl.value.trim() });
     Store.set('cashTips', CASH_TIPS);
     amtEl.value = ''; noteEl.value = '';
+    recalc();             // the next-period estimate averages logged tips
     computeAndRender();
     amtEl.focus();
 }
@@ -2772,6 +2795,7 @@ function deleteTip(id) {
     if (!t || !confirm(`Delete £${t.amt} tip from ${fmtDay(parseDayKey(t.date))}?`)) return;
     CASH_TIPS = CASH_TIPS.filter(x => x.id !== id);
     Store.set('cashTips', CASH_TIPS);
+    recalc();
     computeAndRender();
 }
 
@@ -4164,7 +4188,14 @@ function recalc() {
     const allow  = parseFloat(document.getElementById('c-allow').value)  || 0;
     const vinted = parseFloat(document.getElementById('c-vinted').value) || 0;
     const events = parseFloat(document.getElementById('c-events').value) || 0;
-    const cashMon = allow + vinted + events;
+    // Cash tips: blank = auto from the tips logged on the Overview; a typed figure overrides it.
+    const tipsEl = document.getElementById('c-tips'), tipsAuto = tipsEstimate();
+    const tipsTyped = tipsEl.value.trim() !== '';
+    const tips = tipsTyped ? (parseFloat(tipsEl.value) || 0) : Math.round(tipsAuto.amt);
+    tipsEl.placeholder = Math.round(tipsAuto.amt);
+    document.getElementById('c-tips-note').textContent = tipsTyped
+        ? `typed · auto £${Math.round(tipsAuto.amt).toLocaleString()}` : `auto · ${tipsAuto.label}`;
+    const cashMon = allow + vinted + events + tips;
     document.getElementById('c-cash-total').innerHTML = fmt(cashMon);
 
     // Grand total
@@ -4173,7 +4204,7 @@ function recalc() {
     document.getElementById('gt-cash').innerHTML  = fmt(cashMon);
     document.getElementById('gt-total').innerHTML   = fmtMoney(Math.round(grand), { size:'large' });
 
-    LAST_INCOME = { gross:grossMon, net:netMon, cash:cashMon, grandTotal:grand };
+    LAST_INCOME = { gross:grossMon, net:netMon, cash:cashMon, tips, grandTotal:grand };
     saveIncomeInputs();   // persist edits so they survive a reload
     renderNextIncome();
     if (VIEW) renderAllInsights();   // income feeds save / safe-to-spend / income-estimate insights
@@ -4185,8 +4216,8 @@ function recalc() {
    contract default takes effect. Older saves hold the ONE LDN FOH/DA inputs
    and a 5% pension, so only their cash fields carry over. */
 const INCOME_INPUTS_VERSION = 3;
-const INCOME_INPUT_IDS = ['job-rate','job-tronc','tronc-ni-free','job-contract','job-hrs','pension-pct','c-allow','c-vinted','c-events'];
-const INCOME_CASH_IDS  = ['c-allow','c-vinted','c-events'];
+const INCOME_INPUT_IDS = ['job-rate','job-tronc','tronc-ni-free','job-contract','job-hrs','pension-pct','c-allow','c-vinted','c-events','c-tips'];
+const INCOME_CASH_IDS  = ['c-allow','c-vinted','c-events','c-tips'];   // c-tips: '' = auto (older saves lack it → auto)
 function saveIncomeInputs() {
     const obj = { v: INCOME_INPUTS_VERSION };
     INCOME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el) obj[id] = el.type === 'checkbox' ? el.checked : el.value; });
