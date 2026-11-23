@@ -2183,7 +2183,11 @@ function prevRangeFor(sel) {
 /* ════════════════════════════════════════════════════
    AGGREGATION (live)
    ════════════════════════════════════════════════════ */
-function excluded(cat) { return /exclud|transfer/i.test(String(cat || '')); }
+/* Money moving between your own accounts counts as neither income nor spending:
+   Emma's Excluded / Transfer, plus savings, round-ups, investments and pension
+   (manual accounts record the money arriving, which otherwise reads as income). */
+const EXCLUDED_RE = /exclud|transfer|saving|invest|pension/i;
+function excluded(cat) { return EXCLUDED_RE.test(String(cat || '')); }
 
 /* Category aliases — merge synonymous source categories into one canonical
    name. Applied at aggregation, so it flows to every tab (Overview, Categories,
@@ -2780,8 +2784,8 @@ function renderExcluded() {
     if (!el) return;
     const n = VIEW.excludedCount || 0, t = VIEW.excludedTotal || 0;
     el.textContent = n === 0
-        ? 'No transfers or excluded items this period.'
-        : `Excluded this period: ${n} transfer${n === 1 ? '' : 's'} · £${t.toLocaleString()} (not counted in income or spending)`;
+        ? 'No transfers, savings or investment moves this period.'
+        : `Excluded this period: ${n} transfer${n === 1 ? '' : 's'}, savings or investment move${n === 1 ? '' : 's'} · £${t.toLocaleString()} (not counted in income or spending)`;
 }
 
 function setHero(which, cur, prev) {

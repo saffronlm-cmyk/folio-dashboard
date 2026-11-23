@@ -1,6 +1,6 @@
 # Emma Dashboard — Handoff
 
-_Last updated: 2026-11-11. Read this first when picking the project back up._
+_Last updated: 2026-11-23. Read this first when picking the project back up._
 
 ---
 
@@ -63,7 +63,7 @@ Connect Google → SheetsAPI.fetchData()
 **Key building blocks (search these names in `index.html`):**
 - `Store` — storage abstraction (`Store.get/set/remove`) over localStorage, namespaced `emmaDash:`. **All persisted data goes through this** so the backend can be swapped (→ Supabase) without touching feature code.
 - `RAW_TX` — parsed transactions. Positive amount = income, negative = spend.
-- `excluded(cat)` — `/exclud|transfer/i`; drops transfers/excluded from all totals.
+- `excluded(cat)` — `EXCLUDED_RE` = `/exclud|transfer|saving|invest|pension/i`; drops transfers, Excluded, and savings / round-up / investment / pension moves from all totals (income, spending, budgets, recurring, cash-category picker).
 - `aggregate(start,end)` — returns `{catList, incomeList, totalSpend, totalIncome, excludedTotal, excludedCount}`.
 - `buildLiveView()` / `buildMockView()` — produce the unified `VIEW` object the renderers consume. **Mock fallback must always keep working** (it's the offline/demo state).
 - Period model: `payPeriod(offset)` (anchored on **payday**: the 20th up to Sep 2026, the **last Friday of the month** from Oct 2026; `payAnchor()` handles weekends/bank holidays, `workWindow()` gives the rota-hours window a payday covers), `rangeFor(sel)`, `prevRangeFor(sel)`. `CUR = {mode, offset}` holds the current selection.
@@ -119,6 +119,7 @@ Connect Google → SheetsAPI.fetchData()
 - **Truthful labels over mockup copy:** "since last entry" (not "since last period"); "Previous 5-period average" (`catDetail` averages the 5 prior periods); Income figures stay **whole pounds** (existing `fmt` rounding — pence = pass `decimals:2`).
 - **KPI swaps (per handoff README):** Savings "Accounts" → "Change since last entry"; holdings "Cost basis" → "Today" (cost still shown as "Holdings cost" on Investments).
 - **Refunds net against their category (2026-11-05):** side of the ledger is per category (all-time net sign + income-name keywords), so tag refunds/pay-backs to the spending category in Emma and they reduce that category's spend. No manual override yet — if a category is misclassified, the fix would be an `income` value in `CATEGORY_CLASS`.
+- **Savings & investment moves excluded (2026-11-23):** categories matching saving / invest / pension (Emma's Savings, Round-Up Savings, Investments) count as neither income nor spending, like Transfers. Why: manual accounts (SmartPension contributions, Trading 212 / Revolut Savings top-ups) record money *arriving*, so after PR #22's per-category rule Investments read as an income category and a −£201 Trading 212 top-up pulled Income received down (£2,287 instead of £2,488). Trade-off accepted: money set aside no longer shows as spending; round-ups drop out of spending too.
 - **Cash spending vs withdrawals (2026-11-11):** logged cash counts as spending in its category; ATM withdrawals are *not* auto-excluded (if you didn't log the cash, that spend would vanish). Instead the card flags them; the fix is re-tagging them `Transfer` in Emma, same as savings withdrawals.
 - **`setToggle()`** now clears `.active` only within its own toggle group (was un-highlighting Spending/Income).
 
