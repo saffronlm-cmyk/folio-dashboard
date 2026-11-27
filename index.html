@@ -361,6 +361,13 @@
         .tip-row .icon-btn { width: 28px; height: 28px; }
         .tips-empty { font-size: 13px; color: var(--muted); padding-top: 4px; }
         .tips-total.spend { color: var(--text); }
+        #pot-total { color: var(--text); }
+        #pot-total.neg { color: var(--negative); }
+        #pot-card #pot-note { height: 36px; }
+        .pot-rows { display: flex; flex-direction: column; gap: 6px; padding: 10px 0 2px; border-top: 1px solid var(--border); }
+        .pot-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-2); }
+        .pot-row > span:last-child { white-space: nowrap; font-weight: 500; color: var(--text); }
+        .pot-row.mut, .pot-row.mut > span:last-child { color: var(--muted); font-weight: 400; }
         .cash-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .cash-row2 .fi, .cash-row2 .fs { height: 36px; }
         .cash-warn { font-size: 12px; line-height: 18px; color: var(--text-2); padding: 8px 10px; border-radius: 8px; background: var(--bg); box-shadow: inset 2px 0 0 var(--warning); }
@@ -1182,6 +1189,18 @@
                 <span class="eyebrow">Insights</span>
                 <div class="insight-strip" id="ins-overview"></div>
             </div>
+            <div class="side-card" id="pot-card">
+                <div class="tips-head"><span class="eyebrow">Carry-over pot</span><span class="tips-total" id="pot-total">—</span></div>
+                <span class="tips-sub" id="pot-sub">—</span>
+                <div class="pot-rows" id="pot-rows"></div>
+                <div class="tips-form">
+                    <div class="pfx"><span class="pfx-sym">£</span><input class="fi" type="number" id="pot-amt" min="0" step="0.01" placeholder="0.00" inputmode="decimal" aria-label="Amount to use from the pot" onkeydown="if(event.key==='Enter')usePot()"></div>
+                    <input class="fi" type="date" id="pot-date" aria-label="Date used">
+                    <button class="btn-p" onclick="usePot()">Use</button>
+                </div>
+                <input class="fi" type="text" id="pot-note" maxlength="60" placeholder="What it's for (optional)" aria-label="Note" onkeydown="if(event.key==='Enter')usePot()">
+                <div class="tips-list" id="pot-list"></div>
+            </div>
             <div class="side-card" id="tips-card">
                 <div class="tips-head"><span class="eyebrow">Cash tips</span><span class="tips-total" id="tips-total">—</span></div>
                 <span class="tips-sub" id="tips-sub">—</span>
@@ -1729,9 +1748,9 @@ const Store = {
     // App-owned keys that sync cross-device via Supabase. Transient/device-local
     // keys (priceCache, googleToken, __syncMeta) are deliberately excluded.
     // 'deleted' holds tombstones so a deletion on one device isn't undone by a merge.
-    SYNC_KEYS: ['deleted', 'accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips', 'cashSpend'],
+    SYNC_KEYS: ['deleted', 'accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips', 'cashSpend', 'potUses'],
     // Lists of {id,…} entries: merged entry-by-entry across devices instead of newest-copy-wins.
-    LIST_KEYS: ['cashTips', 'cashSpend'],
+    LIST_KEYS: ['cashTips', 'cashSpend', 'potUses'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
@@ -2042,6 +2061,7 @@ let ACCOUNTS = Store.get('accounts', clone(DEFAULT_ACCOUNTS));
 let INCOME_TARGETS = Store.get('incomeTargets', {});  // keyed by 'YYYY-MM'
 let CASH_TIPS = Store.get('cashTips', []);            // [{id, date:'YYYY-MM-DD', amt, note}]
 let CASH_SPEND = Store.get('cashSpend', []);          // [{id, date:'YYYY-MM-DD', amt, category, note}]
+let POT_USES = Store.get('potUses', []);              // [{id, date:'YYYY-MM-DD', amt, note}] — money taken from the carry-over pot
 
 /* Investment holdings, keyed by account name (matches ACCOUNTS[].name).
    Seeded with Saffron's real symbols (live-wired) but PLACEHOLDER units/cost —
@@ -2348,6 +2368,48 @@ function cashSpendTxs() {
 function cashSpendIn(start, end, cat) {
     return cashSpendTxs().filter(t => t.date >= start && t.date <= end && (!cat || canonCat(t.category) === cat));
 }
+/* ── Carry-over pot ─────────────────────────────────
+   A running total of what's left from each COMPLETED pay period since POT_START:
+     left over = income received − spending − money moved into savings/investments
+   (the same income/spending as everywhere else, so tips and logged cash count).
+   Savings moves are counted from real bank accounts only: Emma's manual accounts
+   mirror the same move (e.g. Revolut Savings +£557 for the −£557 out of Revolut).
+   "Use from pot" entries come off the balance straight away; in their own period they
+   count as money in, so unspent money flows back on payday and spending isn't counted twice.
+   Deliberately kept out of safe-to-spend, budgets and insights. */
+const POT_START = new Date(2026, 9, 30);   // first full pay period at the new job (payday 30 Oct 2026)
+const SAVED_RE = /saving|invest|pension/i;
+function savedIn(start, end) {
+    return RAW_TX.filter(t => t.date >= start && t.date <= end && SAVED_RE.test(t.category || '') && !/manual/i.test(t.bank || ''))
+                 .reduce((s, t) => s - t.amount, 0);
+}
+function potUsesIn(start, end) { return POT_USES.filter(u => { const d = parseDayKey(u.date); return d >= start && d <= end; }); }
+function periodLeftover(p, current) {
+    const used = potUsesIn(p.start, p.end).reduce((s, u) => s + (+u.amt || 0), 0);
+    let income, spend, saved;
+    if (CONNECTED) {
+        const a = aggregate(p.start, p.end);
+        income = a.totalIncome; spend = a.totalSpend; saved = savedIn(p.start, p.end);
+    } else {   // demo figures + anything really logged by hand
+        income = (current ? 1847 : 1649) + sumAmt(tipsIn(p.start, p.end));
+        spend  = (current ? 1203 : 1307) - sumAmt(cashSpendIn(p.start, p.end));
+        saved  = current ? 0 : 120;
+    }
+    return { income, spend, saved, used, left: income - spend - saved + used };
+}
+function potState() {
+    const periods = [];
+    for (let i = 1; i <= 60; i++) {
+        const p = payPeriod(i);
+        if (p.start < POT_START) break;
+        periods.push({ ...p, ...periodLeftover(p, false) });
+    }
+    const usedAll = POT_USES.reduce((s, u) => s + (+u.amt || 0), 0);
+    const cur = payPeriod(0);
+    return { periods, usedAll, balance: periods.reduce((s, p) => s + p.left, 0) - usedAll,
+             cur, now: periodLeftover(cur, true) };
+}
+
 /* Bank-feed cash machine withdrawals still sitting in spending. If cash bought with them
    is also logged here, the same money counts twice; re-tagging them as Transfer in Emma fixes it. */
 const WITHDRAWAL_RE = /\batm\b|cash ?machine|withdraw|^cash$/i;
@@ -2694,7 +2756,7 @@ const SheetsAPI = {
         if (!rows.length) return;
         const H = rows[0].map(h => String(h).trim().toLowerCase());
         const di = H.indexOf('date'), ai = H.indexOf('amount'), cti = H.indexOf('category'),
-              mi = H.indexOf('merchant'), cpi = H.indexOf('counterparty');
+              mi = H.indexOf('merchant'), cpi = H.indexOf('counterparty'), bi = H.indexOf('bank');
         if (di < 0 || ai < 0) { this.status('error', 'Could not find Date/Amount columns'); return; }
 
         for (let i = 1; i < rows.length; i++) {
@@ -2710,7 +2772,8 @@ const SheetsAPI = {
             const category = String(r[cti] != null ? r[cti] : '').trim();
             let merchant = String((mi >= 0 ? r[mi] : '') || '').trim();
             if (!merchant && cpi >= 0) merchant = String(r[cpi] || '').trim();
-            RAW_TX.push({ date, amount, category, merchant });
+            const bank = bi >= 0 ? String(r[bi] || '').trim() : '';   // 'Manual Account' rows mirror moves already seen at the real bank
+            RAW_TX.push({ date, amount, category, merchant, bank });
         }
     },
 
@@ -2757,6 +2820,7 @@ function computeAndRender() {
     refreshBudgets();   // period-independent per-category targets (auto median + overrides)
     document.getElementById('period-display').textContent = VIEW.rangeLabel;
     renderOverview();
+    renderPot();
     renderTips();
     renderCashSpend();
     renderCatRows();
@@ -2794,6 +2858,57 @@ function renderNextIncome() {
         const t = INCOME_TARGETS[key];
         sub.textContent = t ? `saved target ${key}: £${Math.round(t.grandTotal).toLocaleString()}` : 'live estimate · next period';
     }
+}
+
+function renderPot() {
+    const el = id => document.getElementById(id);
+    if (!el('pot-card')) return;
+    const S = potState();
+    const dec = v => (Math.round(v * 100) % 100 ? 2 : 0);
+    const money = (v, sign = false) => fmtMoney(v, { decimals:dec(v), sign });
+    el('pot-total').innerHTML = money(S.balance);
+    el('pot-total').classList.toggle('neg', S.balance < 0);
+    el('pot-sub').textContent = `Running total since ${fmtDay(POT_START)} · not counted in safe-to-spend`;
+    const range = p => `${fmtDay(p.start)} – ${fmtDay(p.end)}`;
+    const why = p => `£${Math.round(p.income).toLocaleString()} in − £${Math.round(p.spend).toLocaleString()} spent`
+        + (Math.round(p.saved) ? ` − £${Math.round(p.saved).toLocaleString()} saved/invested` : '')
+        + (p.used ? ` + £${Math.round(p.used).toLocaleString()} used from pot` : '');
+    const rows = S.periods.slice(0, 6).map(p => `<div class="pot-row" title="${why(p)}"><span>${range(p)}</span><span>${money(p.left, true)}</span></div>`);
+    const nextPay = new Date(S.cur.end.getTime() + 864e5);
+    const inclUsed = S.now.used ? ` (incl. £${Math.round(S.now.used).toLocaleString()} from pot)` : '';
+    rows.unshift(`<div class="pot-row mut" title="${why(S.now)}"><span>This period so far${inclUsed} · adds ${fmtDay(nextPay)}</span><span>${money(S.now.left, true)}</span></div>`);
+    if (S.usedAll) rows.push(`<div class="pot-row"><span>Used from pot</span><span>${money(-S.usedAll, true)}</span></div>`);
+    if (!S.periods.length) rows.push(`<div class="pot-row mut"><span>First amount adds when this pay period ends</span><span></span></div>`);
+    el('pot-rows').innerHTML = rows.join('');
+    const date = el('pot-date');
+    date.max = dayKey(new Date()); date.min = dayKey(POT_START);
+    if (!date.value) date.value = dayKey(new Date());
+    const uses = POT_USES.slice().sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 8);
+    el('pot-list').innerHTML = uses.map(u => `
+        <div class="tip-row">
+            <span class="tip-day">${fmtDay(parseDayKey(u.date))}</span>
+            <span class="tip-note">${escHtml(u.note || 'Used from pot')}</span>
+            <span>${money(-u.amt, true)}</span>
+            <button class="icon-btn danger" onclick="deletePotUse('${u.id}')" title="Delete" aria-label="Delete pot use"><img src="${LUCIDE('trash-2')}" alt=""></button>
+        </div>`).join('');
+}
+function usePot() {
+    const amtEl = document.getElementById('pot-amt'), dateEl = document.getElementById('pot-date'), noteEl = document.getElementById('pot-note');
+    const amt = Math.round(parseFloat(amtEl.value) * 100) / 100;
+    if (!(amt > 0)) { amtEl.focus(); return; }
+    POT_USES.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                    date:dateEl.value || dayKey(new Date()), amt, note:noteEl.value.trim() });
+    Store.set('potUses', POT_USES);
+    amtEl.value = ''; noteEl.value = '';
+    renderPot();
+}
+function deletePotUse(id) {
+    const u = POT_USES.find(x => x.id === id);
+    if (!u || !confirm(`Remove £${u.amt} used from the pot${u.note ? ` (${u.note})` : ''}? It goes back into the pot.`)) return;
+    POT_USES = POT_USES.filter(x => x.id !== id);
+    markDeleted('potUses', id);
+    Store.set('potUses', POT_USES);
+    renderPot();
 }
 
 function renderTips() {
@@ -4365,6 +4480,7 @@ function rehydrateFromStore() {
     CATEGORY_CLASS = Store.get('categoryClass', {});
     CASH_TIPS      = Store.get('cashTips', []);
     CASH_SPEND     = Store.get('cashSpend', []);
+    POT_USES       = Store.get('potUses', []);
     BUDGET_TARGETS = Store.get('budgetTargets', {});
     if (typeof Prices !== 'undefined') Prices.apply();   // keep live prices on holdings pulled from another device
     loadIncomeInputs();   // restore synced income-estimator edits
