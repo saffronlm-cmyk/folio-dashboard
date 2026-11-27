@@ -136,6 +136,13 @@
             flex-shrink: 0;
         }
         .conn-dot.live { background: var(--positive); }
+        .sync-btn { display: flex; align-items: center; gap: 8px; padding: 0; border: none; background: none; font: inherit; font-size: 12px; color: var(--text-4); cursor: pointer; text-align: left; }
+        .sync-btn:hover #sync-label { text-decoration: underline; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; background: var(--text-4); }
+        .sync-btn.ok .sync-dot { background: var(--positive); }
+        .sync-btn.syncing .sync-dot { background: var(--accent); }
+        .sync-btn.error .sync-dot { background: var(--negative); }
+        .sync-btn.off #sync-label { color: #fff; }
 
         /* ─── MAIN ────────────────────────────────── */
         .main { margin-left: var(--sw); min-height: 100vh; padding: 0 40px 48px; }
@@ -862,6 +869,14 @@
                 background: #fff url("https://unpkg.com/lucide-static@0.460.0/icons/link.svg") center / 18px no-repeat;
             }
             .conn-row { display: none; }
+            .sidebar-foot { flex-direction: row; gap: 6px; }
+            /* Sync as a compact icon cell beside Connect: cloud-off = not syncing */
+            .sync-btn { width: 40px; height: 40px; flex-shrink: 0; border-radius: 6px; justify-content: center; position: relative;
+                        background: #fff url("https://unpkg.com/lucide-static@0.460.0/icons/cloud.svg") center / 18px no-repeat; }
+            .sync-btn.off, .sync-btn.error { background-image: url("https://unpkg.com/lucide-static@0.460.0/icons/cloud-off.svg"); }
+            .sync-btn #sync-label { display: none; }
+            .sync-btn .sync-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; }
+            .sync-btn.off .sync-dot { display: none; }
 
             .main { margin-left: 0; padding: 0 16px 88px; }
             .period-bar { padding: 16px 0; top: 0; flex-wrap: nowrap; }
@@ -1049,6 +1064,8 @@
             .lr-name { grid-area: name; } .lr-spent { grid-area: spent; }
             .lr-bar { grid-area: bar; } .lr-status { grid-area: status; } .lr-mom { display: none; }
         }
+            /* Narrow phones: slimmer Connect + Sync cells so the nav labels aren't clipped */
+        @media (max-width: 400px) { .signin-btn, .sync-btn { width: 34px !important; } }
     </style>
 </head>
 <body>
@@ -1085,6 +1102,7 @@
             <span class="conn-dot" id="conn-dot"></span>
             <span id="conn-label">Mock data</span>
         </div>
+        <button class="sync-btn off" id="sync-btn" onclick="Sync.tap()"><span class="sync-dot"></span><span id="sync-label">Sign in to sync devices</span></button>
     </div>
 </nav>
 
@@ -1709,8 +1727,11 @@ const CONFIG = {
 const Store = {
     PREFIX: 'emmaDash:',
     // App-owned keys that sync cross-device via Supabase. Transient/device-local
-    // keys (priceCache, googleToken) are deliberately excluded.
-    SYNC_KEYS: ['accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips', 'cashSpend'],
+    // keys (priceCache, googleToken, __syncMeta) are deliberately excluded.
+    // 'deleted' holds tombstones so a deletion on one device isn't undone by a merge.
+    SYNC_KEYS: ['deleted', 'accounts', 'incomeTargets', 'holdings', 'categoryClass', 'incomeInputs', 'budgetTargets', 'cashTips', 'cashSpend'],
+    // Lists of {id,…} entries: merged entry-by-entry across devices instead of newest-copy-wins.
+    LIST_KEYS: ['cashTips', 'cashSpend'],
     get(key, fallback = null) {
         try {
             const raw = localStorage.getItem(this.PREFIX + key);
@@ -1720,37 +1741,60 @@ const Store = {
     hasLocal(key) {
         try { return localStorage.getItem(this.PREFIX + key) != null; } catch (e) { return false; }
     },
-    // Local-only write — used during hydration so pulling remote rows doesn't echo
-    // straight back up to Supabase.
+    // Local-only write — used when applying pulled remote data so it doesn't echo back up.
     _writeLocal(key, val) {
         try { localStorage.setItem(this.PREFIX + key, JSON.stringify(val)); return true; }
         catch (e) { console.warn('Store write failed', key, e); return false; }
     },
-    set(key, val) {
+    // opts.transient: a device-local refresh (e.g. live prices written onto holdings) —
+    // saved here but not marked as an edit, so it never overwrites another device's change.
+    set(key, val, opts = {}) {
+        let prev = null;
+        try { prev = localStorage.getItem(this.PREFIX + key); } catch (e) {}
+        if (prev === JSON.stringify(val)) return true;   // unchanged (e.g. recalc() re-saving inputs) → nothing to sync
         const ok = this._writeLocal(key, val);
-        // Write-through: when signed in, mirror app-owned keys to Supabase.
-        if (ok && this.SYNC_KEYS.includes(key) && typeof Sync !== 'undefined' && Sync.signedIn) {
-            Sync.push(key, val);
-        }
+        if (ok && !opts.transient && this.SYNC_KEYS.includes(key) && typeof Sync !== 'undefined') Sync.edited(key, val);
         return ok;
     },
     remove(key) { try { localStorage.removeItem(this.PREFIX + key); } catch (e) {} },
 };
 
+/* Record a deletion from a synced list so other devices drop the entry too. */
+function markDeleted(listKey, id) {
+    const d = Store.get('deleted', {});
+    d[listKey] = Array.from(new Set([...(d[listKey] || []), id]));
+    Store.set('deleted', d);
+}
+
 /* ════════════════════════════════════════════════════
-   SYNC — Supabase backend (auth + cross-device KV sync)
+   SYNC — Supabase backend (auth + two-way cross-device KV sync)
    ----------------------------------------------------
-   A single Google sign-in (Supabase OAuth) provides BOTH
-   the app identity (per-user data sync) AND the Google
-   access token used to read the Emma sheet. App-owned
-   Store keys mirror to public.user_data (RLS-scoped to
-   the signed-in user). Not signed in / offline → Store
-   stays local-only, so the mock/offline state is intact.
+   Supabase Google sign-in ("Sign in to sync" in the sidebar) gives each device
+   access to its user's rows in public.user_data (RLS-scoped). Separate from the
+   Sheets token (GAuth), which "Connect Google Sheets" handles.
+
+   Two-way: an edit is saved locally and pushed at once; every device pulls on
+   load, on returning to the tab and every minute while visible. Per key, this
+   device keeps { at: server updated_at of the copy it last synced, dirty: unpushed
+   local edit, seq, editedAt } in local-only __syncMeta, so:
+     · remote changed, no local edit pending → take remote
+     · local edit pending (e.g. offline)     → push it (if both changed, latest edit wins)
+     · cashTips / cashSpend                  → merged entry-by-entry, minus tombstones
+   Not signed in / offline → Store stays local-only and the mock/offline state works.
    ════════════════════════════════════════════════════ */
+// Remote rows last saved before two-way sync shipped are the copies stranded since
+// July: on a device's first sync, its own copy beats one of those.
+const SYNC_CUTOFF = Date.parse('2026-11-23T00:00:00Z');
+const SYNC_LABELS = { accounts:'accounts', holdings:'investment holdings', incomeTargets:'income targets',
+                      categoryClass:'category types', incomeInputs:'income estimator inputs', budgetTargets:'budget overrides' };
+
 const Sync = {
     client: null,
     session: null,
-    hydrated: false,
+    pulling: false,
+    lastPull: 0,
+    state: 'off',
+    lastOk: null,
 
     get signedIn() { return !!(this.session && this.session.user); },
 
@@ -1759,36 +1803,29 @@ const Sync = {
         this.client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
             auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
         });
-
-        // NOTE: the Google Sheets read token is NOT sourced from Supabase. Supabase
-        // only exposes provider_token once (on the OAuth callback) and never on a
-        // reload or its own token refresh, so live data silently lapsed after ~1h.
-        // GAuth (Google Identity Services) now owns the Sheets token — it can renew
-        // it silently — while Sync stays purely for cross-device KV sync below.
         this.client.auth.onAuthStateChange((event, session) => {
             this.session = session;
-            if (!session) return;
-            this.hydrateAndMigrate();
+            if (!session) { this.setStatus('off'); return; }
+            this.pull('auth');
         });
-
-        // Pick up any persisted session on load.
         this.client.auth.getSession().then(({ data }) => {
-            if (data && data.session) { this.session = data.session; this.hydrateAndMigrate(); }
+            if (data && data.session) { this.session = data.session; this.pull('load'); }
+            else this.setStatus('off');
         });
+        // Pick up the other device's edits: on returning to the tab, and every minute while visible.
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.pull('focus'); });
+        window.addEventListener('focus', () => this.pull('focus'));
+        setInterval(() => { if (document.visibilityState === 'visible') this.pull('poll'); }, 60000);
     },
+
+    // Sidebar control: sign in when signed out, otherwise sync now.
+    tap() { this.signedIn ? this.pull('manual', true) : this.signIn(); },
 
     async signIn() {
         if (!this.client) { alert('Sign-in is still loading — try again in a second.'); return; }
         const redirectTo = window.location.href.split('#')[0];
-        const { error } = await this.client.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                scopes: CONFIG.SCOPES,
-                redirectTo,
-                queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
-            },
-        });
-        if (error) alert('Google sign-in failed:\n' + error.message);
+        const { error } = await this.client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+        if (error) alert('Sign-in to sync failed:\n' + error.message);
     },
 
     async signOut() {
@@ -1797,36 +1834,124 @@ const Sync = {
         location.reload();
     },
 
-    /* Pull this user's rows. First sign-in (remote empty) seeds the server from
-       whatever this device holds; otherwise remote wins, and any local-only keys
-       are pushed up to fill gaps. */
-    async hydrateAndMigrate() {
-        if (this.hydrated || !this.signedIn) return;
-        this.hydrated = true;
-        try {
-            const { data, error } = await this.client.from('user_data').select('key,value');
-            if (error) throw error;
-            const remote = {};
-            (data || []).forEach(r => { remote[r.key] = r.value; });
-            const remoteKeys = Object.keys(remote);
+    meta() { return Store.get('__syncMeta', {}); },
+    setMeta(key, patch) { const m = this.meta(); m[key] = { ...(m[key] || {}), ...patch }; Store._writeLocal('__syncMeta', m); },
 
-            if (remoteKeys.length === 0) {
-                Store.SYNC_KEYS.forEach(k => { if (Store.hasLocal(k)) this.push(k, Store.get(k)); });
-            } else {
-                remoteKeys.forEach(k => Store._writeLocal(k, remote[k]));
-                Store.SYNC_KEYS.forEach(k => { if (!(k in remote) && Store.hasLocal(k)) this.push(k, Store.get(k)); });
-            }
-            rehydrateFromStore();
+    // Called by Store.set for a real edit: mark it unpushed, then push.
+    edited(key, val) {
+        const m = this.meta()[key] || {};
+        this.setMeta(key, { dirty:true, seq:(m.seq || 0) + 1, editedAt:Date.now() });
+        this.push(key, val);
+    },
+
+    async push(key, val) {
+        if (!this.signedIn) return false;
+        const seq = (this.meta()[key] || {}).seq || 0;
+        try {
+            const { data, error } = await this.client.from('user_data')
+                .upsert({ user_id:this.session.user.id, key, value:val }, { onConflict:'user_id,key' })
+                .select('updated_at').single();
+            if (error) throw error;
+            const now = this.meta()[key] || {};
+            // Only clear the pending flag if no newer edit started while this push was in flight.
+            this.setMeta(key, { at:data.updated_at, dirty:(now.seq || 0) !== seq ? now.dirty : false });
+            this.setStatus('ok');
+            return true;
         } catch (e) {
-            console.warn('Supabase hydrate failed — staying on local data', e);
+            console.warn('Sync.push failed', key, e);
+            this.setStatus('error');
+            return false;
         }
     },
 
-    push(key, val) {
-        if (!this.signedIn) return;
-        this.client.from('user_data')
-            .upsert({ user_id: this.session.user.id, key, value: val }, { onConflict: 'user_id,key' })
-            .then(({ error }) => { if (error) console.warn('Sync.push failed', key, error); });
+    // Union of entries by id (local first), minus anything deleted on either device.
+    mergeList(local, remote, tomb) {
+        const out = [], seen = new Set(), dead = new Set(tomb || []);
+        for (const e of [...(local || []), ...(remote || [])]) {
+            if (!e || seen.has(e.id) || dead.has(e.id)) continue;
+            seen.add(e.id); out.push(e);
+        }
+        return out;
+    },
+
+    async pull(reason, force = false) {
+        if (!this.signedIn || this.pulling) return;
+        if (!force && reason !== 'auth' && reason !== 'load' && Date.now() - this.lastPull < 5000) return;
+        // Don't swap data out from under an open edit form or a field being typed in; next pull catches up.
+        const ae = document.activeElement;
+        if (document.querySelector('#modal.open, #holding-modal.open') || (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && reason === 'poll')) return;
+        this.pulling = true; this.lastPull = Date.now();
+        if (reason !== 'poll') this.setStatus('syncing');
+        try {
+            const { data, error } = await this.client.from('user_data').select('key,value,updated_at');
+            if (error) throw error;
+            const remote = {};
+            (data || []).forEach(r => { remote[r.key] = r; });
+            const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+            const ts = r => Date.parse(r.updated_at);
+            let changed = false;
+            const take = (k, r) => {
+                if (!same(Store.get(k), r.value)) { Store._writeLocal(k, r.value); changed = true; }
+                this.setMeta(k, { at:r.updated_at, dirty:false });
+            };
+            const keepOrMerge = (k, val, r) => {   // write val locally if different, then push it if remote differs
+                if (!same(Store.get(k), val)) { Store._writeLocal(k, val); changed = true; }
+                if (!r || !same(r.value, val)) this.push(k, val); else this.setMeta(k, { at:r.updated_at, dirty:false });
+            };
+
+            // Tombstones first: union of both sides.
+            const dl = Store.get('deleted', {}), dr = (remote.deleted && remote.deleted.value) || {};
+            const deleted = {};
+            new Set([...Object.keys(dl), ...Object.keys(dr)]).forEach(k => { deleted[k] = Array.from(new Set([...(dl[k] || []), ...(dr[k] || [])])); });
+            keepOrMerge('deleted', deleted, remote.deleted);
+
+            const conflicts = [];
+            for (const k of Store.SYNC_KEYS) {
+                if (k === 'deleted') continue;
+                const r = remote[k], m = this.meta()[k], hasLocal = Store.hasLocal(k), local = Store.get(k);
+                if (Store.LIST_KEYS.includes(k)) {
+                    if (!r && !hasLocal) continue;
+                    keepOrMerge(k, this.mergeList(local, r && r.value, deleted[k]), r);
+                    continue;
+                }
+                if (!r) { if (hasLocal) this.push(k, local); continue; }
+                if (!hasLocal || same(local, r.value)) { take(k, r); continue; }
+                if (!m || !m.at) {
+                    // First sync on this device since two-way sync: a pre-cutoff remote is the stale
+                    // July copy, so this device wins; otherwise ask which copy to keep.
+                    if (ts(r) < SYNC_CUTOFF) this.push(k, local); else conflicts.push(k);
+                    continue;
+                }
+                const remoteChanged = ts(r) > Date.parse(m.at);
+                if (m.dirty && remoteChanged) { (m.editedAt || 0) >= ts(r) ? this.push(k, local) : take(k, r); }
+                else if (m.dirty) this.push(k, local);
+                else if (remoteChanged) take(k, r);
+            }
+            if (conflicts.length) {
+                const names = conflicts.map(k => SYNC_LABELS[k] || k).join(', ');
+                const keepLocal = confirm(`This device has different ${names} from your synced copy.\n\nOK = keep this device's version (and send it to your other devices)\nCancel = use the synced version`);
+                conflicts.forEach(k => keepLocal ? this.push(k, Store.get(k)) : take(k, remote[k]));
+            }
+            if (changed) rehydrateFromStore();
+            this.setStatus('ok');
+        } catch (e) {
+            console.warn('Sync.pull failed — staying on local data', e);
+            this.setStatus('error');
+        } finally {
+            this.pulling = false;
+        }
+    },
+
+    setStatus(state) {
+        if (state === 'ok') this.lastOk = new Date();
+        this.state = state;
+        const btn = document.getElementById('sync-btn'), lbl = document.getElementById('sync-label');
+        if (!btn || !lbl) return;
+        const t = this.lastOk ? this.lastOk.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) : '';
+        const text = { off:'Sign in to sync devices', syncing:'Syncing…', ok:`Synced · ${t}`, error:'Sync failed · tap to retry' }[state];
+        lbl.textContent = text;
+        btn.title = state === 'off' ? 'Sign in to keep your phone and laptop in step' : text;
+        btn.className = 'sync-btn ' + state;
     },
 };
 
@@ -2756,6 +2881,7 @@ function deleteCashSpend(id) {
     const t = CASH_SPEND.find(x => x.id === id);
     if (!t || !confirm(`Delete £${t.amt} cash spend (${t.category}) from ${fmtDay(parseDayKey(t.date))}?`)) return;
     CASH_SPEND = CASH_SPEND.filter(x => x.id !== id);
+    markDeleted('cashSpend', id);   // so the other device drops it too
     Store.set('cashSpend', CASH_SPEND);
     computeAndRender();
 }
@@ -2775,6 +2901,7 @@ function deleteTip(id) {
     const t = CASH_TIPS.find(x => x.id === id);
     if (!t || !confirm(`Delete £${t.amt} tip from ${fmtDay(parseDayKey(t.date))}?`)) return;
     CASH_TIPS = CASH_TIPS.filter(x => x.id !== id);
+    markDeleted('cashTips', id);    // so the other device drops it too
     Store.set('cashTips', CASH_TIPS);
     computeAndRender();
 }
@@ -4035,7 +4162,7 @@ const Prices = {
             h.priceTs = c.ts;
             changed = true;
         }
-        if (changed) Store.set('holdings', HOLDINGS);
+        if (changed) Store.set('holdings', HOLDINGS, { transient:true });   // live prices are a local refresh, not an edit to sync
     },
 
     lastUpdated() {
@@ -4238,6 +4365,8 @@ function rehydrateFromStore() {
     CATEGORY_CLASS = Store.get('categoryClass', {});
     CASH_TIPS      = Store.get('cashTips', []);
     CASH_SPEND     = Store.get('cashSpend', []);
+    BUDGET_TARGETS = Store.get('budgetTargets', {});
+    if (typeof Prices !== 'undefined') Prices.apply();   // keep live prices on holdings pulled from another device
     loadIncomeInputs();   // restore synced income-estimator edits
     recalc();
     computeAndRender();
